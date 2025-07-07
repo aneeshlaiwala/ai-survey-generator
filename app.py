@@ -821,7 +821,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         # Part 1: Screener Questions
         status_text.text("🤖 Generating screener questions...")
         screener_prompt = f"""
-        You are an expert market researcher specializing in {survey_data['detected_category']} research. 
+        You are an expert {survey_data['detected_category']} market researcher specializing in {survey_data['market_country']} market research.
 
         Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this {survey_data['detected_category']} survey:
         
@@ -829,14 +829,17 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
         Category: {survey_data['detected_category']}
+        Available Brands: {brand_list_text}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {question_counts['screener']} questions numbered Q1. Q2. Q3. etc.
-        - Focus on {survey_data['detected_category']}-specific screening based on the survey objective
+        - Focus ONLY on {survey_data['detected_category']}-specific screening based on survey objective
+        - Use REAL {survey_data['detected_category']} brands from research: {top_10_brands}
+        - NEVER use "Brand A, Brand B, Brand C" - always use real brand names
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
         - Include termination logic where applicable
-        - NO GENERIC QUESTIONS - ONLY {survey_data['detected_category'].upper()}-SPECIFIC
+        - NO QUESTIONS ABOUT OTHER CATEGORIES (cars, EVs, etc.)
         
         EXAMPLE FORMAT:
         Q1. What is your age?
@@ -852,9 +855,10 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         Statistical Methods: Descriptive Statistics, Cross-tabulation, Demographic Analysis
         Fraud Detection: No
         Quality Checks: Age range validation, logical consistency
-        Termination Logic: Terminate if outside target age range for this study
+        Termination Logic: Terminate if outside target age range for this {survey_data['detected_category']} study
         
-        Generate all {question_counts['screener']} screener questions focusing on {survey_data['detected_category']} qualification based on the survey objective provided.
+        Generate all {question_counts['screener']} screener questions focusing ONLY on {survey_data['detected_category']} qualification.
+        Use real brand names: {brand_list_text}
         """
         
         screener_response = client.chat.completions.create(
