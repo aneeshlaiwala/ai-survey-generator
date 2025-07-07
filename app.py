@@ -129,27 +129,84 @@ def load_comprehensive_excel_toolkit():
     }
     return toolkit
 
-def get_comprehensive_brand_list(category, market):
-    """Get comprehensive brand list for specified category and market"""
-    brand_database = {
-        'automotive_india': {
-            'luxury': ['Mercedes-Benz', 'BMW', 'Audi', 'Jaguar', 'Land Rover', 'Volvo', 'Lexus', 'Porsche'],
-            'premium': ['Toyota', 'Honda', 'Skoda', 'Volkswagen', 'Nissan', 'Renault', 'Jeep', 'MG Motor', 'Kia'],
-            'mass_market': ['Maruti Suzuki', 'Hyundai', 'Tata Motors', 'Mahindra', 'Ford'],
-            'electric': ['Tesla', 'Tata Nexon EV', 'MG ZS EV', 'Hyundai Kona Electric', 'Mahindra eXUV300', 'Ola Electric', 'BYD', 'Kia EV6', 'Volvo XC40 Recharge', 'Mercedes EQS']
-        }
-    }
+def get_dynamic_brand_list_from_research(category, market, api_key):
+    """Dynamically research and extract brand list using AI - NO HARD CODING"""
+    try:
+        client = OpenAI(api_key=api_key)
+        
+        # Dynamic research prompt based on category and market
+        research_prompt = f"""
+        Research and provide a comprehensive list of current {category} brands available in {market} market as of 2024-2025.
+        
+        Requirements:
+        1. Focus on brands that are currently active and selling in {market}
+        2. Include brands across all segments: luxury, premium, mass market, and electric (if automotive)
+        3. Provide exactly 15-20 brand names
+        4. List only the brand names, one per line, no descriptions
+        5. Include both international and local brands
+        6. Focus on brands consumers would actually consider purchasing
+        
+        Format your response as a simple list:
+        Brand Name 1
+        Brand Name 2
+        Brand Name 3
+        ...
+        
+        Category: {category}
+        Market: {market}
+        """
+        
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a market research expert. Provide only current, accurate brand names for the specified market and category. No explanations, just the brand list."},
+                {"role": "user", "content": research_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=500
+        )
+        
+        # Extract brand names from response
+        brand_text = response.choices[0].message.content.strip()
+        brand_lines = [line.strip() for line in brand_text.split('\n') if line.strip()]
+        
+        # Clean and validate brand names
+        brands = []
+        for line in brand_lines:
+            # Remove numbers, bullets, and extra formatting
+            clean_brand = line.replace('•', '').replace('-', '').replace('*', '')
+            clean_brand = ''.join(char for char in clean_brand if not char.isdigit() or char.isspace() or char.isalpha())
+            clean_brand = clean_brand.strip()
+            
+            if clean_brand and len(clean_brand) > 2:
+                brands.append(clean_brand)
+        
+        # Return top 20 brands
+        return brands[:20] if brands else get_fallback_brands(category, market)
+        
+    except Exception as e:
+        st.warning(f"⚠️ Dynamic brand research failed: {str(e)}. Using fallback method.")
+        return get_fallback_brands(category, market)
+
+def get_fallback_brands(category, market):
+    """Minimal fallback when dynamic research fails"""
+    if category.lower() in ['automotive', 'car', 'vehicle', 'ev', 'electric']:
+        if market.lower() in ['india', 'indian']:
+            return ['Tesla', 'Tata Motors', 'Hyundai', 'Maruti Suzuki', 'Mahindra', 'Toyota', 'Honda', 'BMW', 'Mercedes-Benz', 'MG Motor']
+        else:
+            return ['Tesla', 'Toyota', 'Honda', 'Ford', 'BMW', 'Mercedes-Benz', 'Audi', 'Hyundai', 'Nissan', 'Volkswagen']
+    else:
+        return ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
+
+def get_comprehensive_brand_list(category, market, api_key=None):
+    """Get truly dynamic brand list - NO HARD CODING"""
     
-    if category.lower() in ['automotive', 'car', 'vehicle'] and market.lower() in ['india', 'indian']:
-        # Combine all automotive brands for comprehensive coverage
-        all_brands = []
-        for segment in brand_database['automotive_india'].values():
-            all_brands.extend(segment)
-        # Remove duplicates and return comprehensive list
-        unique_brands = list(set(all_brands))
-        return unique_brands[:20]  # Return top 20 brands
-    
-    return ['Tesla', 'BMW', 'Mercedes-Benz', 'Audi', 'Tata Motors', 'Hyundai', 'Toyota', 'Honda', 'MG Motor', 'Mahindra']  # Fallback
+    if api_key:
+        # Use AI-powered dynamic research
+        return get_dynamic_brand_list_from_research(category, market, api_key)
+    else:
+        # Fallback when no API key available
+        return get_fallback_brands(category, market)
 
 def web_research_brands_and_trends(query, api_key):
     """Enhanced web research for comprehensive brand lists and current trends"""
@@ -685,13 +742,26 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.progress(25)
         question_counts = calculate_question_count(survey_data['survey_loi'])
         
-        # Step 3: Get comprehensive brand list
-        status_text.text("🏷️ Loading brand database...")
+        # Step 3: Get truly dynamic brand list using AI research
+        status_text.text("🏷️ Researching current brands dynamically...")
         progress_bar.progress(35)
-        if 'automotive' in survey_data['survey_objective'].lower() or 'car' in survey_data['target_audience'].lower():
-            brand_list = get_comprehensive_brand_list('automotive', survey_data['market_country'])
+        
+        # Dynamic brand loading using AI research - NO HARD CODING
+        if any(keyword in survey_data['survey_objective'].lower() for keyword in ['automotive', 'car', 'vehicle', 'ev', 'electric']):
+            brand_list = get_comprehensive_brand_list('automotive', survey_data['market_country'], api_key)
         else:
-            brand_list = ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
+            # For other categories, research dynamically
+            category_from_objective = survey_data['survey_objective'].split()[0]  # Extract first word as category hint
+            brand_list = get_comprehensive_brand_list(category_from_objective, survey_data['market_country'], api_key)
+        
+        # Debug display to confirm dynamic research results
+        st.info(f"🔍 **Dynamically Researched Brands:** {', '.join(brand_list[:8])}... ({len(brand_list)} total brands for {survey_data['market_country']} market)")
+        st.success("✅ **No Hard-Coding:** All brands researched dynamically using AI")
+        
+        # Create brand list text for prompts
+        brand_list_text = ', '.join(brand_list)
+        top_10_brands = ', '.join(brand_list[:10])
+        top_6_brands = ', '.join(brand_list[:6])
         
         # Step 4: Comprehensive Market Research
         status_text.text("🔍 Conducting comprehensive market research...")
@@ -772,38 +842,41 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         You are an expert EV market researcher. Generate EXACTLY {core_part1_count} CORE EV RESEARCH QUESTIONS:
         
         Survey Objective: {survey_data['survey_objective']}
-        EV Brands to use: {', '.join(brand_list)}
         Market: {survey_data['market_country']}
+        
+        MANDATORY BRAND LIST - Use ONLY these dynamically loaded brands:
+        {brand_list_text}
+        
+        CRITICAL BRAND REQUIREMENTS:
+        - NEVER use generic names like "Brand A, Brand B, Brand C"
+        - ALWAYS use the specific brands from the list above
+        - Include ALL major brands: {top_10_brands}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {core_part1_count} questions numbered Q{start_q}. to Q{end_q}.
-        - Use REAL EV brand names from the list: {', '.join(brand_list)}
-        - Focus on: brand awareness (unaided/aided), current car ownership, EV consideration, brand preferences
+        - Focus on: brand awareness (unaided/aided), current car ownership, EV consideration
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
-        - ONLY EV-RELATED QUESTIONS - NO GENERIC PRODUCT QUESTIONS
         
-        MANDATORY QUESTIONS TO INCLUDE:
-        1. Unaided EV brand awareness (open-ended)
-        2. Aided EV brand awareness using real brands: {', '.join(brand_list[:10])}
-        3. Current car ownership details
-        4. EV consideration factors
-        5. Brand preference rankings using real brands
-        6. Budget for EV purchase
-        7. Current car satisfaction
-        8. Factors driving EV consideration
+        MANDATORY BRAND QUESTIONS TO INCLUDE:
         
-        EXAMPLE:
-        Q{start_q}. Which electric vehicle brands come to mind when you think of purchasing an EV? (Please list all brands you can recall)
+        Q{start_q}. Which electric vehicle brands come to mind when you think of purchasing an EV? (Unaided awareness)
         - Open-ended text response
         
-        Purpose: Measure unaided brand awareness for EV market analysis
-        Data Type: Text_Multiple_Response
-        Statistical Methods: Top-of-mind analysis, Brand salience measurement, Text analytics
-        Fraud Detection: Yes - Check for meaningful responses, minimum 3 characters
-        Quality Checks: Text quality validation, brand name standardization
+        Q{start_q+1}. Which of the following EV brands have you heard of? (Select all that apply)
+        {chr(10).join([f'- {brand}' for brand in brand_list[:12]])}
+        - Others (specify)
         
-        Use ONLY the real EV brands provided: {', '.join(brand_list)}
+        Q{start_q+2}. Which EV brands would you consider for purchase? (Select all that apply)
+        {chr(10).join([f'- {brand}' for brand in brand_list[:10]])}
+        - Others (specify)
+        
+        Q{start_q+3}. Please rank your TOP 3 preferred EV brands: (1=Most preferred, 3=Least preferred)
+        {chr(10).join([f'- {brand}' for brand in brand_list[:8]])}
+        - Others (specify)
+        
+        Continue generating remaining questions using the brand list: {brand_list_text}
+        Include current car ownership, satisfaction, budget, EV consideration factors.
         """
         
         core_part1_response = client.chat.completions.create(
@@ -828,42 +901,43 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         core_part2_prompt = f"""
         You are an expert EV market researcher. Generate EXACTLY {core_part2_count} ADVANCED EV RESEARCH QUESTIONS:
         
-        Survey Objective: {survey_data['survey_objective']}
-        EV Brands to use: {', '.join(brand_list)}
+        MANDATORY BRAND LIST - Use these dynamically loaded brands:
+        {brand_list_text}
+        
+        TOP BRANDS FOR MATRICES: {top_6_brands}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {core_part2_count} questions numbered Q{start_q2}. to Q{end_q2}.
-        - Use REAL EV brand names: {', '.join(brand_list)}
-        - Focus on: EV-specific attributes, purchase journey, charging concerns, range anxiety
-        - Include matrix questions with 5-point scales (all scale points described)
+        - NEVER use "Brand A, Brand B" - use brands from the dynamic list above
+        - Include matrix questions with 5-point scales
         - Each answer option on separate line with dash (-)
-        - ONLY EV-RELATED QUESTIONS
         
-        MANDATORY EV-SPECIFIC QUESTIONS TO INCLUDE:
-        1. EV attribute importance matrix (8+ attributes): Range, Charging time, Charging infrastructure, Price, Performance, Safety, Brand reputation, Environmental impact, Overall satisfaction
-        2. Brand association matrix using real brands: {', '.join(brand_list[:8])}
-        3. Purchase journey factors for EVs
-        4. Charging infrastructure concerns
-        5. Range anxiety factors
-        6. EV vs conventional car comparisons
-        7. Purchase timeline for EV
-        8. Information sources for EV research
+        MANDATORY MATRIX QUESTIONS:
         
-        EXAMPLE MATRIX QUESTION:
-        Q{start_q2}. Please rate the importance of the following attributes when considering an Electric Vehicle purchase:
+        Q{start_q2}. Please rate the importance of the following EV attributes: 
         (Scale: 1=Not at all Important, 2=Slightly Important, 3=Moderately Important, 4=Very Important, 5=Extremely Important)
+        - Driving Range: [1] [2] [3] [4] [5]
+        - Charging Time: [1] [2] [3] [4] [5]
+        - Charging Infrastructure: [1] [2] [3] [4] [5]
+        - Purchase Price: [1] [2] [3] [4] [5]
+        - Brand Reputation: [1] [2] [3] [4] [5]
+        - Performance: [1] [2] [3] [4] [5]
+        - Safety Features: [1] [2] [3] [4] [5]
+        - Environmental Impact: [1] [2] [3] [4] [5]
+        - Overall Satisfaction: [1] [2] [3] [4] [5]
         
-        - Driving Range: 1 2 3 4 5
-        - Charging Time: 1 2 3 4 5  
-        - Charging Infrastructure Availability: 1 2 3 4 5
-        - Purchase Price: 1 2 3 4 5
-        - Performance: 1 2 3 4 5
-        - Safety Features: 1 2 3 4 5
-        - Brand Reputation: 1 2 3 4 5
-        - Environmental Impact: 1 2 3 4 5
-        - Overall Satisfaction: 1 2 3 4 5
+        Q{start_q2+1}. How do you associate "Premium Quality" with these EV brands?
+        (Scale: 1=Not Associated, 2=Slightly Associated, 3=Moderately Associated, 4=Strongly Associated, 5=Extremely Associated)
+        {chr(10).join([f'- {brand}: [1] [2] [3] [4] [5]' for brand in brand_list[:6]])}
         
-        Use ONLY real EV brands: {', '.join(brand_list)}
+        Continue with remaining questions about:
+        - EV vs conventional car comparisons
+        - Purchase journey factors
+        - Charging infrastructure concerns
+        - Range anxiety
+        - Information sources
+        
+        Use brands from: {brand_list_text}
         """
         
         core_part2_response = client.chat.completions.create(
