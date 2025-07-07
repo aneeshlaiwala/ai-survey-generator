@@ -683,12 +683,15 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         research_query = f"{target_audience} {market_country} comprehensive brand list market trends consumer behavior automotive industry"
         research_data = web_research_brands_and_trends(research_query, api_key)
         
-        # Step 3: Generate Advanced Prompt
-        status_text.text("📝 Creating advanced survey prompt...")
+        # Step 3: Calculate question counts
+        status_text.text("📝 Calculating question distribution...")
         progress_bar.progress(50)
+        question_counts = calculate_question_count(survey_data['survey_loi'])
+        
+        # Step 4: Generate Advanced Prompt
         advanced_prompt = generate_advanced_survey_prompt(survey_data, research_data, toolkit)
         
-        # Step 4: Generate Questionnaire in Multiple Parts
+        # Step 5: Generate Questionnaire in Multiple Parts
         status_text.text("🤖 Generating comprehensive questionnaire...")
         progress_bar.progress(70)
         
@@ -855,7 +858,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 
                 questionnaire += "\n\n" + completion_response.choices[0].message.content
         
-        # Step 5: Format and Store
+        # Step 6: Format and Store
         status_text.text("✨ Formatting questionnaire...")
         progress_bar.progress(90)
         
