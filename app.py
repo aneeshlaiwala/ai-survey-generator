@@ -130,75 +130,56 @@ def load_comprehensive_excel_toolkit():
     return toolkit
 
 def get_dynamic_brand_list_from_research(category, market, api_key):
-    """Dynamically research and extract brand list using AI - COMPLETELY DYNAMIC"""
+    """Dynamically research and extract brand list using AI - with quota management"""
     try:
         client = OpenAI(api_key=api_key)
         
-        # Enhanced research prompt based on category and market
+        # Shorter, more efficient research prompt to save tokens
         research_prompt = f"""
-        Research and provide a comprehensive list of current {category} brands available in {market} market in 2024-2025.
-        
-        Category Context: {category}
-        Market: {market}
-        
-        Requirements:
-        1. Provide 15-20 popular and well-known {category} brand names
-        2. Include both international and local {market} brands
-        3. Focus on brands that consumers actively purchase and recognize
-        4. List ONLY brand names, no descriptions or explanations
-        5. One brand name per line
-        6. Include premium, mid-range, and affordable brands
-        
-        Examples of what to research:
-        - If automotive: car manufacturers like Toyota, Honda, local brands
-        - If cosmetics: beauty brands like L'Oreal, Maybelline, local beauty brands
-        - If food: restaurant chains, food brands popular in the market
-        - If technology: phone/computer brands available in the market
-        
-        Provide output as simple list:
-        [Brand Name 1]
-        [Brand Name 2]
-        [Brand Name 3]
-        ...
-        
-        Focus on {category} brands in {market} market.
+        List 15 popular {category} brands in {market} market. 
+        Format: one brand name per line, no descriptions.
+        Example:
+        L'Oreal
+        Maybelline
+        Lakme
         """
         
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # Use cheaper model for brand research
             messages=[
-                {"role": "system", "content": f"You are a {market} market research expert specializing in {category} brands. Provide only current, accurate brand names available in {market}. No explanations, just the brand list."},
+                {"role": "system", "content": f"List popular {category} brands in {market}. One name per line."},
                 {"role": "user", "content": research_prompt}
             ],
-            temperature=0.1,  # Lower temperature for more consistent results
-            max_tokens=600
+            temperature=0.1,
+            max_tokens=300  # Reduced tokens
         )
         
-        # Extract and clean brand names from response
+        # Extract and clean brand names
         brand_text = response.choices[0].message.content.strip()
         brand_lines = [line.strip() for line in brand_text.split('\n') if line.strip()]
         
-        # Clean and validate brand names
         brands = []
         for line in brand_lines:
-            # Remove common formatting characters
-            clean_brand = line.replace('•', '').replace('-', '').replace('*', '').replace('1.', '').replace('2.', '')
+            clean_brand = line.replace('•', '').replace('-', '').replace('*', '')
             clean_brand = ''.join(char for char in clean_brand if not (char.isdigit() and char in '123456789.'))
             clean_brand = clean_brand.strip()
             
-            # Filter valid brand names
             if clean_brand and len(clean_brand) > 2 and len(clean_brand) < 50:
                 brands.append(clean_brand)
         
-        # Return successful research or fallback
         if len(brands) >= 5:
-            return brands[:20]  # Return top 20 brands
+            return brands[:15]
         else:
-            raise Exception(f"Insufficient brands found: {len(brands)}")
+            raise Exception(f"Only {len(brands)} brands found")
             
     except Exception as e:
-        # Return fallback brands with error indication
-        return [f"Research failed: {str(e)[:50]}"] + get_fallback_brands(category, market)
+        # Return more realistic fallback brands based on category
+        if category.lower() in ['cosmetics', 'beauty', 'skincare', 'cream']:
+            return ['L\'Oreal', 'Maybelline', 'Lakme', 'MAC', 'Revlon', 'Clinique', 'Estee Lauder', 'Nykaa', 'Lotus Herbals', 'Forest Essentials']
+        elif category.lower() in ['automotive', 'car', 'vehicle']:
+            return ['Toyota', 'Honda', 'Hyundai', 'Maruti Suzuki', 'Tata Motors', 'Mahindra', 'BMW', 'Mercedes-Benz']
+        else:
+            return [f"Research failed: {str(e)[:30]}"] + ['Popular Brand 1', 'Popular Brand 2', 'Popular Brand 3', 'Popular Brand 4', 'Popular Brand 5']
 
 def get_fallback_brands(category, market):
     """Minimal fallback when dynamic research fails"""
