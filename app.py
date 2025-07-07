@@ -677,23 +677,32 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.progress(15)
         toolkit = load_comprehensive_excel_toolkit()
         
-        # Step 2: Comprehensive Market Research
-        status_text.text("🔍 Conducting comprehensive market research...")
-        progress_bar.progress(30)
-        research_query = f"{target_audience} {market_country} comprehensive brand list market trends consumer behavior automotive industry"
-        research_data = web_research_brands_and_trends(research_query, api_key)
-        
-        # Step 3: Calculate question counts
-        status_text.text("📝 Calculating question distribution...")
-        progress_bar.progress(50)
+        # Step 2: Calculate question counts first
+        status_text.text("📊 Calculating question distribution...")
+        progress_bar.progress(25)
         question_counts = calculate_question_count(survey_data['survey_loi'])
         
-        # Step 4: Generate Advanced Prompt
-        advanced_prompt = generate_advanced_survey_prompt(survey_data, research_data, toolkit)
+        # Step 3: Get comprehensive brand list
+        status_text.text("🏷️ Loading brand database...")
+        progress_bar.progress(35)
+        if 'automotive' in survey_data['survey_objective'].lower() or 'car' in survey_data['target_audience'].lower():
+            brand_list = get_comprehensive_brand_list('automotive', survey_data['market_country'])
+        else:
+            brand_list = ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
         
-        # Step 5: Generate Questionnaire in Multiple Parts
+        # Step 4: Comprehensive Market Research
+        status_text.text("🔍 Conducting comprehensive market research...")
+        progress_bar.progress(45)
+        research_query = f"{survey_data['target_audience']} {survey_data['market_country']} comprehensive brand list market trends consumer behavior automotive industry"
+        research_data = web_research_brands_and_trends(research_query, api_key)
+        
+        # Step 5: Generate Advanced Prompt (not used in multi-part generation)
+        status_text.text("📝 Preparing survey generation...")
+        progress_bar.progress(55)
+        
+        # Step 6: Generate Questionnaire in Multiple Parts
         status_text.text("🤖 Generating comprehensive questionnaire...")
-        progress_bar.progress(70)
+        progress_bar.progress(65)
         
         client = OpenAI(api_key=api_key)
         
@@ -701,6 +710,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         full_questionnaire = ""
         
         # Part 1: Screener Questions
+        status_text.text("🤖 Generating screener questions...")
         screener_prompt = f"""
         Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this survey:
         
@@ -731,6 +741,8 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         full_questionnaire += screener_response.choices[0].message.content + "\n\n"
         
         # Part 2: Core Research Questions (First Half)
+        status_text.text("🤖 Generating core research questions (Part 1)...")
+        progress_bar.progress(75)
         core_part1_count = question_counts['core_research'] // 2
         start_q = question_counts['screener'] + 1
         end_q = start_q + core_part1_count - 1
@@ -764,6 +776,8 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         full_questionnaire += core_part1_response.choices[0].message.content + "\n\n"
         
         # Part 3: Core Research Questions (Second Half)
+        status_text.text("🤖 Generating core research questions (Part 2)...")
+        progress_bar.progress(85)
         core_part2_count = question_counts['core_research'] - core_part1_count
         start_q2 = end_q + 1
         end_q2 = start_q2 + core_part2_count - 1
@@ -797,6 +811,8 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         full_questionnaire += core_part2_response.choices[0].message.content + "\n\n"
         
         # Part 4: Demographics Questions
+        status_text.text("🤖 Generating demographics questions...")
+        progress_bar.progress(90)
         demo_start = end_q2 + 1
         demo_end = demo_start + question_counts['demographics'] - 1
         
@@ -858,10 +874,12 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 
                 questionnaire += "\n\n" + completion_response.choices[0].message.content
         
-        # Step 6: Format and Store
-        status_text.text("✨ Formatting questionnaire...")
-        progress_bar.progress(90)
+        # Step 7: Validate and complete questionnaire
+        status_text.text("✅ Validating question count...")
+        progress_bar.progress(95)
         
+        # Step 8: Final formatting and storage
+        status_text.text("✨ Formatting questionnaire...")
         formatted_questionnaire = format_questionnaire_with_logic(questionnaire)
         st.session_state.questionnaire_text = formatted_questionnaire
         st.session_state.questionnaire_generated = True
@@ -873,7 +891,11 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.empty()
         status_text.empty()
         
-        st.success("🎉 **Questionnaire generated successfully!** Scroll down to view and download.")
+        # Show final count
+        final_question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and ':' in line]
+        final_count = len(final_question_lines)
+        
+        st.success(f"🎉 **Questionnaire generated successfully!** Generated {final_count} out of {question_counts['total']} questions. Scroll down to view and download.")
         
     except Exception as e:
         progress_bar.empty()
