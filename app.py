@@ -1,5 +1,6 @@
+
 import streamlit as st
-import openai
+from openai import OpenAI
 
 # Title
 st.title("AI Survey Questionnaire Generator with Auto Survey Generation")
@@ -91,17 +92,16 @@ Reference the AI Survey Toolkit Excel document for additional details on questio
     st.code(prompt, language='markdown')
 
     if api_key:
-        openai.api_key = api_key
+        client = OpenAI(api_key=api_key)
         with st.spinner("Generating full survey questionnaire from OpenAI..."):
             try:
-                response = openai.ChatCompletion.create(
+                response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
                         {"role": "system", "content": "You are an expert survey researcher."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.5,
-                    max_tokens=4096
+                    temperature=0.5
                 )
                 questionnaire = response.choices[0].message.content
                 st.subheader("Generated Survey Questionnaire")
