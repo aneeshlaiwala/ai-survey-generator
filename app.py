@@ -1,8 +1,12 @@
-
 import streamlit as st
+import openai
 
 # Title
-st.title("AI Survey Questionnaire Generator")
+st.title("AI Survey Questionnaire Generator with Auto Survey Generation")
+
+# API Key Input
+st.sidebar.header("API Settings")
+api_key = st.sidebar.text_input("Enter your OpenAI API Key:", type="password")
 
 # Survey Planning Inputs
 st.header("Survey Planning Inputs")
@@ -31,7 +35,7 @@ compliance_requirements = st.multiselect("Compliance Requirements", ["GDPR", "CC
 market_country = st.text_input("Market (Country)")
 
 # Generate Prompt Button
-if st.button("Generate AI Survey Prompt"):
+if st.button("Generate AI Survey Prompt and Questionnaire"):
     # Calculate Estimated Question Count based on LOI
     min_questions = int(survey_loi * 3)
     max_questions = int(survey_loi * 5)
@@ -85,5 +89,25 @@ Reference the AI Survey Toolkit Excel document for additional details on questio
 
     st.subheader("Generated AI Survey Prompt")
     st.code(prompt, language='markdown')
-    
-    st.download_button("Download Prompt as Text File", prompt, file_name="ai_survey_prompt.txt")
+
+    if api_key:
+        openai.api_key = api_key
+        with st.spinner("Generating full survey questionnaire from OpenAI..."):
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are an expert survey researcher."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5,
+                    max_tokens=4096
+                )
+                questionnaire = response.choices[0].message.content
+                st.subheader("Generated Survey Questionnaire")
+                st.text_area("Survey Questionnaire", questionnaire, height=500)
+                st.download_button("Download Questionnaire as Text File", questionnaire, file_name="survey_questionnaire.txt")
+            except Exception as e:
+                st.error(f"Error generating questionnaire: {str(e)}")
+    else:
+        st.warning("Please enter your OpenAI API key in the sidebar to auto-generate the questionnaire.")
