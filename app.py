@@ -130,63 +130,75 @@ def load_comprehensive_excel_toolkit():
     return toolkit
 
 def get_dynamic_brand_list_from_research(category, market, api_key):
-    """Dynamically research and extract brand list using AI - NO HARD CODING"""
+    """Dynamically research and extract brand list using AI - COMPLETELY DYNAMIC"""
     try:
         client = OpenAI(api_key=api_key)
         
-        # Dynamic research prompt based on category and market
+        # Enhanced research prompt based on category and market
         research_prompt = f"""
-        Research and provide a comprehensive list of current {category} brands available in {market} market as of 2024-2025.
+        Research and provide a comprehensive list of current {category} brands available in {market} market in 2024-2025.
+        
+        Category Context: {category}
+        Market: {market}
         
         Requirements:
-        1. Focus on brands that are currently active and selling in {market}
-        2. Include brands across all segments: luxury, premium, mass market, and electric (if automotive)
-        3. Provide exactly 15-20 brand names
-        4. List only the brand names, one per line, no descriptions
-        5. Include both international and local brands
-        6. Focus on brands consumers would actually consider purchasing
+        1. Provide 15-20 popular and well-known {category} brand names
+        2. Include both international and local {market} brands
+        3. Focus on brands that consumers actively purchase and recognize
+        4. List ONLY brand names, no descriptions or explanations
+        5. One brand name per line
+        6. Include premium, mid-range, and affordable brands
         
-        Format your response as a simple list:
-        Brand Name 1
-        Brand Name 2
-        Brand Name 3
+        Examples of what to research:
+        - If automotive: car manufacturers like Toyota, Honda, local brands
+        - If cosmetics: beauty brands like L'Oreal, Maybelline, local beauty brands
+        - If food: restaurant chains, food brands popular in the market
+        - If technology: phone/computer brands available in the market
+        
+        Provide output as simple list:
+        [Brand Name 1]
+        [Brand Name 2]
+        [Brand Name 3]
         ...
         
-        Category: {category}
-        Market: {market}
+        Focus on {category} brands in {market} market.
         """
         
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a market research expert. Provide only current, accurate brand names for the specified market and category. No explanations, just the brand list."},
+                {"role": "system", "content": f"You are a {market} market research expert specializing in {category} brands. Provide only current, accurate brand names available in {market}. No explanations, just the brand list."},
                 {"role": "user", "content": research_prompt}
             ],
-            temperature=0.2,
-            max_tokens=500
+            temperature=0.1,  # Lower temperature for more consistent results
+            max_tokens=600
         )
         
-        # Extract brand names from response
+        # Extract and clean brand names from response
         brand_text = response.choices[0].message.content.strip()
         brand_lines = [line.strip() for line in brand_text.split('\n') if line.strip()]
         
         # Clean and validate brand names
         brands = []
         for line in brand_lines:
-            # Remove numbers, bullets, and extra formatting
-            clean_brand = line.replace('•', '').replace('-', '').replace('*', '')
-            clean_brand = ''.join(char for char in clean_brand if not char.isdigit() or char.isspace() or char.isalpha())
+            # Remove common formatting characters
+            clean_brand = line.replace('•', '').replace('-', '').replace('*', '').replace('1.', '').replace('2.', '')
+            clean_brand = ''.join(char for char in clean_brand if not (char.isdigit() and char in '123456789.'))
             clean_brand = clean_brand.strip()
             
-            if clean_brand and len(clean_brand) > 2:
+            # Filter valid brand names
+            if clean_brand and len(clean_brand) > 2 and len(clean_brand) < 50:
                 brands.append(clean_brand)
         
-        # Return top 20 brands
-        return brands[:20] if brands else get_fallback_brands(category, market)
-        
+        # Return successful research or fallback
+        if len(brands) >= 5:
+            return brands[:20]  # Return top 20 brands
+        else:
+            raise Exception(f"Insufficient brands found: {len(brands)}")
+            
     except Exception as e:
-        st.warning(f"⚠️ Dynamic brand research failed: {str(e)}. Using fallback method.")
-        return get_fallback_brands(category, market)
+        # Return fallback brands with error indication
+        return [f"Research failed: {str(e)[:50]}"] + get_fallback_brands(category, market)
 
 def get_fallback_brands(category, market):
     """Minimal fallback when dynamic research fails"""
@@ -742,23 +754,47 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.progress(25)
         question_counts = calculate_question_count(survey_data['survey_loi'])
         
-        # Step 3: Get truly dynamic brand list using AI research
-        status_text.text("🏷️ Researching current brands dynamically...")
+        # Step 3: Intelligent category detection and dynamic brand research
+        status_text.text("🧠 Analyzing survey category and researching brands...")
         progress_bar.progress(35)
         
-        # Dynamic brand loading using AI research - NO HARD CODING
-        if any(keyword in survey_data['survey_objective'].lower() for keyword in ['automotive', 'car', 'vehicle', 'ev', 'electric']):
-            brand_list = get_comprehensive_brand_list('automotive', survey_data['market_country'], api_key)
+        # Smart category detection from survey objective
+        objective_lower = survey_data['survey_objective'].lower()
+        
+        # Detect category intelligently
+        if any(keyword in objective_lower for keyword in ['automotive', 'car', 'vehicle', 'ev', 'electric']):
+            survey_category = 'automotive'
+        elif any(keyword in objective_lower for keyword in ['cosmetic', 'beauty', 'cream', 'skincare', 'makeup', 'lipstick', 'foundation']):
+            survey_category = 'cosmetics'
+        elif any(keyword in objective_lower for keyword in ['food', 'restaurant', 'dining', 'beverage', 'drink']):
+            survey_category = 'food_beverage'
+        elif any(keyword in objective_lower for keyword in ['phone', 'smartphone', 'mobile', 'technology', 'laptop', 'computer']):
+            survey_category = 'technology'
+        elif any(keyword in objective_lower for keyword in ['fashion', 'clothing', 'apparel', 'shoes', 'brand']):
+            survey_category = 'fashion'
         else:
-            # For other categories, research dynamically
-            category_from_objective = survey_data['survey_objective'].split()[0]  # Extract first word as category hint
-            brand_list = get_comprehensive_brand_list(category_from_objective, survey_data['market_country'], api_key)
+            # Extract key terms for unknown categories
+            survey_category = objective_lower.split()[0] if objective_lower.split() else 'general'
         
-        # Debug display to confirm dynamic research results
-        st.info(f"🔍 **Dynamically Researched Brands:** {', '.join(brand_list[:8])}... ({len(brand_list)} total brands for {survey_data['market_country']} market)")
-        st.success("✅ **No Hard-Coding:** All brands researched dynamically using AI")
+        st.info(f"🎯 **Category Detected:** {survey_category.title()} | **Market:** {survey_data['market_country']}")
         
-        # Create brand list text for prompts
+        # Dynamic brand research based on detected category
+        try:
+            brand_list = get_comprehensive_brand_list(survey_category, survey_data['market_country'], api_key)
+            brand_research_success = True
+        except Exception as e:
+            st.warning(f"⚠️ Brand research failed: {str(e)}")
+            brand_list = ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
+            brand_research_success = False
+        
+        # Display results
+        if brand_research_success and len(brand_list) > 5:
+            st.success(f"✅ **Dynamic Brand Research Successful:** {', '.join(brand_list[:6])}... ({len(brand_list)} total brands)")
+        else:
+            st.error(f"❌ **Brand Research Failed:** Using fallback brands - {', '.join(brand_list)}")
+        
+        # Store category and brands for prompts
+        survey_data['detected_category'] = survey_category
         brand_list_text = ', '.join(brand_list)
         top_10_brands = ', '.join(brand_list[:10])
         top_6_brands = ', '.join(brand_list[:6])
@@ -785,20 +821,22 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         # Part 1: Screener Questions
         status_text.text("🤖 Generating screener questions...")
         screener_prompt = f"""
-        You are an expert EV market researcher. Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this Electric Vehicle survey:
+        You are an expert market researcher specializing in {survey_data['detected_category']} research. 
+
+        Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this {survey_data['detected_category']} survey:
         
         Survey Objective: {survey_data['survey_objective']}
         Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
+        Category: {survey_data['detected_category']}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {question_counts['screener']} questions numbered Q1. Q2. Q3. etc.
-        - Use format: Q1. [Question text]
-        - Focus ONLY on EV-related screening: age, income, location, employment, car ownership, EV consideration
+        - Focus on {survey_data['detected_category']}-specific screening based on the survey objective
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
         - Include termination logic where applicable
-        - NO GENERIC PRODUCT QUESTIONS - ONLY EV-SPECIFIC
+        - NO GENERIC QUESTIONS - ONLY {survey_data['detected_category'].upper()}-SPECIFIC
         
         EXAMPLE FORMAT:
         Q1. What is your age?
@@ -809,14 +847,14 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         - 55+ 
         - Others (specify)
         
-        Purpose: Validate target demographic age range for EV purchase study
+        Purpose: Validate target demographic age range for {survey_data['detected_category']} study
         Data Type: Categorical_Single_Response
         Statistical Methods: Descriptive Statistics, Cross-tabulation, Demographic Analysis
         Fraud Detection: No
         Quality Checks: Age range validation, logical consistency
-        Termination Logic: Terminate if outside 25-45 range for this EV study
+        Termination Logic: Terminate if outside target age range for this study
         
-        Generate all {question_counts['screener']} screener questions focusing on EV purchase qualification.
+        Generate all {question_counts['screener']} screener questions focusing on {survey_data['detected_category']} qualification based on the survey objective provided.
         """
         
         screener_response = client.chat.completions.create(
@@ -839,44 +877,45 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         end_q = start_q + core_part1_count - 1
         
         core_part1_prompt = f"""
-        You are an expert EV market researcher. Generate EXACTLY {core_part1_count} CORE EV RESEARCH QUESTIONS:
+        You are an expert {survey_data['detected_category']} market researcher. 
+
+        Generate EXACTLY {core_part1_count} CORE {survey_data['detected_category'].upper()} RESEARCH QUESTIONS:
         
         Survey Objective: {survey_data['survey_objective']}
+        Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
+        Category: {survey_data['detected_category']}
         
-        MANDATORY BRAND LIST - Use ONLY these dynamically loaded brands:
+        DYNAMICALLY RESEARCHED BRANDS FOR {survey_data['detected_category'].upper()}:
         {brand_list_text}
         
         CRITICAL BRAND REQUIREMENTS:
         - NEVER use generic names like "Brand A, Brand B, Brand C"
-        - ALWAYS use the specific brands from the list above
-        - Include ALL major brands: {top_10_brands}
+        - ALWAYS use the specific {survey_data['detected_category']} brands from the research: {top_10_brands}
+        - If insufficient brands researched, acknowledge and work with available brands
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {core_part1_count} questions numbered Q{start_q}. to Q{end_q}.
-        - Focus on: brand awareness (unaided/aided), current car ownership, EV consideration
+        - Focus on: brand awareness, current usage, {survey_data['detected_category']} preferences
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
+        - ONLY {survey_data['detected_category'].upper()}-RELATED QUESTIONS based on survey objective
         
-        MANDATORY BRAND QUESTIONS TO INCLUDE:
+        MANDATORY BRAND QUESTIONS FOR {survey_data['detected_category'].upper()}:
         
-        Q{start_q}. Which electric vehicle brands come to mind when you think of purchasing an EV? (Unaided awareness)
+        Q{start_q}. Which {survey_data['detected_category']} brands come to mind when you think about this category? (Unaided awareness)
         - Open-ended text response
         
-        Q{start_q+1}. Which of the following EV brands have you heard of? (Select all that apply)
+        Q{start_q+1}. Which of the following {survey_data['detected_category']} brands have you heard of? (Select all that apply)
         {chr(10).join([f'- {brand}' for brand in brand_list[:12]])}
         - Others (specify)
         
-        Q{start_q+2}. Which EV brands would you consider for purchase? (Select all that apply)
+        Q{start_q+2}. Which {survey_data['detected_category']} brands do you currently use or have used? (Select all that apply)
         {chr(10).join([f'- {brand}' for brand in brand_list[:10]])}
         - Others (specify)
         
-        Q{start_q+3}. Please rank your TOP 3 preferred EV brands: (1=Most preferred, 3=Least preferred)
-        {chr(10).join([f'- {brand}' for brand in brand_list[:8]])}
-        - Others (specify)
-        
-        Continue generating remaining questions using the brand list: {brand_list_text}
-        Include current car ownership, satisfaction, budget, EV consideration factors.
+        Continue generating remaining questions using the researched brands: {brand_list_text}
+        Focus on {survey_data['detected_category']}-specific usage, satisfaction, and preferences based on the survey objective.
         """
         
         core_part1_response = client.chat.completions.create(
