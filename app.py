@@ -133,20 +133,23 @@ def get_comprehensive_brand_list(category, market):
     """Get comprehensive brand list for specified category and market"""
     brand_database = {
         'automotive_india': {
-            'luxury': ['Mercedes-Benz', 'BMW', 'Audi', 'Jaguar', 'Land Rover', 'Volvo', 'Lexus', 'Porsche', 'Ferrari', 'Lamborghini'],
-            'premium': ['Toyota', 'Honda', 'Skoda', 'Volkswagen', 'Nissan', 'Renault', 'Jeep', 'MG', 'Kia', 'BYD'],
-            'mass_market': ['Maruti Suzuki', 'Hyundai', 'Tata Motors', 'Mahindra', 'Ford', 'Chevrolet', 'Datsun'],
-            'electric': ['Tesla', 'Tata Nexon EV', 'MG ZS EV', 'Hyundai Kona', 'Mahindra eXUV300', 'Ather', 'Ola Electric', 'TVS iQube', 'Bajaj Chetak', 'Hero Electric', 'BYD', 'Kia EV6']
+            'luxury': ['Mercedes-Benz', 'BMW', 'Audi', 'Jaguar', 'Land Rover', 'Volvo', 'Lexus', 'Porsche'],
+            'premium': ['Toyota', 'Honda', 'Skoda', 'Volkswagen', 'Nissan', 'Renault', 'Jeep', 'MG Motor', 'Kia'],
+            'mass_market': ['Maruti Suzuki', 'Hyundai', 'Tata Motors', 'Mahindra', 'Ford'],
+            'electric': ['Tesla', 'Tata Nexon EV', 'MG ZS EV', 'Hyundai Kona Electric', 'Mahindra eXUV300', 'Ola Electric', 'BYD', 'Kia EV6', 'Volvo XC40 Recharge', 'Mercedes EQS']
         }
     }
     
     if category.lower() in ['automotive', 'car', 'vehicle'] and market.lower() in ['india', 'indian']:
+        # Combine all automotive brands for comprehensive coverage
         all_brands = []
         for segment in brand_database['automotive_india'].values():
             all_brands.extend(segment)
-        return list(set(all_brands))  # Remove duplicates
+        # Remove duplicates and return comprehensive list
+        unique_brands = list(set(all_brands))
+        return unique_brands[:20]  # Return top 20 brands
     
-    return ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']  # Fallback
+    return ['Tesla', 'BMW', 'Mercedes-Benz', 'Audi', 'Tata Motors', 'Hyundai', 'Toyota', 'Honda', 'MG Motor', 'Mahindra']  # Fallback
 
 def web_research_brands_and_trends(query, api_key):
     """Enhanced web research for comprehensive brand lists and current trends"""
@@ -712,20 +715,38 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         # Part 1: Screener Questions
         status_text.text("🤖 Generating screener questions...")
         screener_prompt = f"""
-        Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this survey:
+        You are an expert EV market researcher. Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this Electric Vehicle survey:
         
-        Survey: {survey_data['survey_objective']}
-        Target: {survey_data['target_audience']}
+        Survey Objective: {survey_data['survey_objective']}
+        Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
         
-        REQUIREMENTS:
-        - Generate EXACTLY {question_counts['screener']} questions numbered Q1 to Q{question_counts['screener']}
-        - Include age, income, location, employment, car ownership, EV consideration, attention checks
+        CRITICAL REQUIREMENTS:
+        - Generate EXACTLY {question_counts['screener']} questions numbered Q1. Q2. Q3. etc.
+        - Use format: Q1. [Question text]
+        - Focus ONLY on EV-related screening: age, income, location, employment, car ownership, EV consideration
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
         - Include termination logic where applicable
+        - NO GENERIC PRODUCT QUESTIONS - ONLY EV-SPECIFIC
         
-        Start with: SECTION 1: SCREENER QUESTIONS ({question_counts['screener']} QUESTIONS)
+        EXAMPLE FORMAT:
+        Q1. What is your age?
+        - 18-24
+        - 25-34
+        - 35-44
+        - 45-54
+        - 55+ 
+        - Others (specify)
+        
+        Purpose: Validate target demographic age range for EV purchase study
+        Data Type: Categorical_Single_Response
+        Statistical Methods: Descriptive Statistics, Cross-tabulation, Demographic Analysis
+        Fraud Detection: No
+        Quality Checks: Age range validation, logical consistency
+        Termination Logic: Terminate if outside 25-45 range for this EV study
+        
+        Generate all {question_counts['screener']} screener questions focusing on EV purchase qualification.
         """
         
         screener_response = client.chat.completions.create(
@@ -748,19 +769,41 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         end_q = start_q + core_part1_count - 1
         
         core_part1_prompt = f"""
-        Generate EXACTLY {core_part1_count} CORE RESEARCH QUESTIONS for this EV survey:
+        You are an expert EV market researcher. Generate EXACTLY {core_part1_count} CORE EV RESEARCH QUESTIONS:
         
-        Survey: {survey_data['survey_objective']}
-        Brands to use: {', '.join(brand_list)}
+        Survey Objective: {survey_data['survey_objective']}
+        EV Brands to use: {', '.join(brand_list)}
+        Market: {survey_data['market_country']}
         
-        REQUIREMENTS:
-        - Generate EXACTLY {core_part1_count} questions numbered Q{start_q} to Q{end_q}
-        - Include: brand awareness (unaided/aided), current usage, ownership details, preferences
+        CRITICAL REQUIREMENTS:
+        - Generate EXACTLY {core_part1_count} questions numbered Q{start_q}. to Q{end_q}.
+        - Use REAL EV brand names from the list: {', '.join(brand_list)}
+        - Focus on: brand awareness (unaided/aided), current car ownership, EV consideration, brand preferences
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
-        - Use comprehensive brand list provided
+        - ONLY EV-RELATED QUESTIONS - NO GENERIC PRODUCT QUESTIONS
         
-        Start with: SECTION 2A: CORE RESEARCH QUESTIONS - PART 1 ({core_part1_count} QUESTIONS)
+        MANDATORY QUESTIONS TO INCLUDE:
+        1. Unaided EV brand awareness (open-ended)
+        2. Aided EV brand awareness using real brands: {', '.join(brand_list[:10])}
+        3. Current car ownership details
+        4. EV consideration factors
+        5. Brand preference rankings using real brands
+        6. Budget for EV purchase
+        7. Current car satisfaction
+        8. Factors driving EV consideration
+        
+        EXAMPLE:
+        Q{start_q}. Which electric vehicle brands come to mind when you think of purchasing an EV? (Please list all brands you can recall)
+        - Open-ended text response
+        
+        Purpose: Measure unaided brand awareness for EV market analysis
+        Data Type: Text_Multiple_Response
+        Statistical Methods: Top-of-mind analysis, Brand salience measurement, Text analytics
+        Fraud Detection: Yes - Check for meaningful responses, minimum 3 characters
+        Quality Checks: Text quality validation, brand name standardization
+        
+        Use ONLY the real EV brands provided: {', '.join(brand_list)}
         """
         
         core_part1_response = client.chat.completions.create(
@@ -783,19 +826,44 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         end_q2 = start_q2 + core_part2_count - 1
         
         core_part2_prompt = f"""
-        Generate EXACTLY {core_part2_count} CORE RESEARCH QUESTIONS for this EV survey:
+        You are an expert EV market researcher. Generate EXACTLY {core_part2_count} ADVANCED EV RESEARCH QUESTIONS:
         
-        Survey: {survey_data['survey_objective']}
-        Brands to use: {', '.join(brand_list)}
+        Survey Objective: {survey_data['survey_objective']}
+        EV Brands to use: {', '.join(brand_list)}
         
-        REQUIREMENTS:
-        - Generate EXACTLY {core_part2_count} questions numbered Q{start_q2} to Q{end_q2}
-        - Include: attribute importance (8+ attributes), brand associations, purchase factors, journey questions
+        CRITICAL REQUIREMENTS:
+        - Generate EXACTLY {core_part2_count} questions numbered Q{start_q2}. to Q{end_q2}.
+        - Use REAL EV brand names: {', '.join(brand_list)}
+        - Focus on: EV-specific attributes, purchase journey, charging concerns, range anxiety
         - Include matrix questions with 5-point scales (all scale points described)
         - Each answer option on separate line with dash (-)
-        - Include complete metadata for each question
+        - ONLY EV-RELATED QUESTIONS
         
-        Start with: SECTION 2B: CORE RESEARCH QUESTIONS - PART 2 ({core_part2_count} QUESTIONS)
+        MANDATORY EV-SPECIFIC QUESTIONS TO INCLUDE:
+        1. EV attribute importance matrix (8+ attributes): Range, Charging time, Charging infrastructure, Price, Performance, Safety, Brand reputation, Environmental impact, Overall satisfaction
+        2. Brand association matrix using real brands: {', '.join(brand_list[:8])}
+        3. Purchase journey factors for EVs
+        4. Charging infrastructure concerns
+        5. Range anxiety factors
+        6. EV vs conventional car comparisons
+        7. Purchase timeline for EV
+        8. Information sources for EV research
+        
+        EXAMPLE MATRIX QUESTION:
+        Q{start_q2}. Please rate the importance of the following attributes when considering an Electric Vehicle purchase:
+        (Scale: 1=Not at all Important, 2=Slightly Important, 3=Moderately Important, 4=Very Important, 5=Extremely Important)
+        
+        - Driving Range: 1 2 3 4 5
+        - Charging Time: 1 2 3 4 5  
+        - Charging Infrastructure Availability: 1 2 3 4 5
+        - Purchase Price: 1 2 3 4 5
+        - Performance: 1 2 3 4 5
+        - Safety Features: 1 2 3 4 5
+        - Brand Reputation: 1 2 3 4 5
+        - Environmental Impact: 1 2 3 4 5
+        - Overall Satisfaction: 1 2 3 4 5
+        
+        Use ONLY real EV brands: {', '.join(brand_list)}
         """
         
         core_part2_response = client.chat.completions.create(
@@ -817,15 +885,42 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         demo_end = demo_start + question_counts['demographics'] - 1
         
         demo_prompt = f"""
-        Generate EXACTLY {question_counts['demographics']} DEMOGRAPHICS QUESTIONS for this survey:
+        You are an expert survey researcher. Generate EXACTLY {question_counts['demographics']} DEMOGRAPHICS QUESTIONS for this EV study:
         
-        REQUIREMENTS:
-        - Generate EXACTLY {question_counts['demographics']} questions numbered Q{demo_start} to Q{demo_end}
-        - Include: detailed age, gender, income, education, household, lifestyle
+        CRITICAL REQUIREMENTS:
+        - Generate EXACTLY {question_counts['demographics']} questions numbered Q{demo_start}. to Q{demo_end}.
+        - Include: age, gender, income, education, household size, employment, lifestyle
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
+        - Use Indian market context (Rupees for income, Indian cities, etc.)
+        - NO GENERIC PRODUCT QUESTIONS - ONLY DEMOGRAPHICS
         
-        Start with: SECTION 3: DEMOGRAPHICS QUESTIONS ({question_counts['demographics']} QUESTIONS)
+        MANDATORY DEMOGRAPHICS:
+        1. Age (detailed brackets)
+        2. Gender 
+        3. Annual income (in Rupees - Indian context)
+        4. Education level
+        5. Employment status
+        6. Household size
+        7. City of residence
+        8. Lifestyle/Family status
+        
+        EXAMPLE:
+        Q{demo_start}. What is your highest level of education?
+        - Less than 10th standard
+        - 10th standard
+        - 12th standard/Higher Secondary
+        - Diploma
+        - Bachelor's degree
+        - Master's degree
+        - PhD/Doctorate
+        - Others (specify)
+        
+        Purpose: Educational profiling for EV adoption analysis
+        Data Type: Categorical_Ordinal
+        Statistical Methods: Demographic analysis, Education-based segmentation, Cross-tabulation
+        
+        Focus ONLY on demographic profiling - NO product satisfaction questions.
         """
         
         demo_response = client.chat.completions.create(
@@ -845,7 +940,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         questionnaire = full_questionnaire
         
         # Validate question count
-        question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and ':' in line]
+        question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and '.' in line and any(char.isdigit() for char in line)]
         actual_count = len(question_lines)
         
         if actual_count < question_counts['total']:
@@ -857,15 +952,29 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 completion_prompt = f"""
                 The survey is incomplete. Generate {remaining_count} additional questions to complete the survey.
                 Continue from Q{actual_count + 1} to Q{question_counts['total']}.
-                Include purchase journey, satisfaction, and additional research questions.
-                Each answer option on separate line with dash (-).
-                Include complete metadata for each question.
+                
+                REQUIREMENTS:
+                - Generate EXACTLY {remaining_count} questions
+                - Number them Q{actual_count + 1} through Q{question_counts['total']}
+                - Include purchase journey, satisfaction, and additional research questions
+                - Each answer option on separate line with dash (-)
+                - Include complete metadata for each question
+                
+                EXAMPLE FORMAT:
+                Q{actual_count + 1}. [Question text]
+                - Option 1
+                - Option 2
+                - Option 3
+                
+                Purpose: [Research objective]
+                Statistical Methods: [Analysis methods]
+                Fraud Detection: [Yes/No]
                 """
                 
                 completion_response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
-                        {"role": "system", "content": "Complete the survey with the exact remaining questions needed."},
+                        {"role": "system", "content": "Complete the survey with the exact remaining questions needed. Use proper Q[number]. format."},
                         {"role": "user", "content": completion_prompt}
                     ],
                     temperature=0.2,
@@ -873,6 +982,13 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 )
                 
                 questionnaire += "\n\n" + completion_response.choices[0].message.content
+                
+                # Re-validate
+                question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and '.' in line and any(char.isdigit() for char in line)]
+                actual_count = len(question_lines)
+        
+        # Show generation summary
+        st.info(f"📊 **Generation Summary:** {actual_count} questions generated out of {question_counts['total']} target questions")
         
         # Step 7: Validate and complete questionnaire
         status_text.text("✅ Validating question count...")
@@ -892,10 +1008,13 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         status_text.empty()
         
         # Show final count
-        final_question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and ':' in line]
+        final_question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and '.' in line and any(char.isdigit() for char in line)]
         final_count = len(final_question_lines)
         
-        st.success(f"🎉 **Questionnaire generated successfully!** Generated {final_count} out of {question_counts['total']} questions. Scroll down to view and download.")
+        if final_count >= question_counts['total']:
+            st.success(f"🎉 **Complete questionnaire generated!** {final_count} questions created. Scroll down to view and download.")
+        else:
+            st.success(f"🎉 **Questionnaire generated!** {final_count} out of {question_counts['total']} questions created. Scroll down to view and download.")
         
     except Exception as e:
         progress_bar.empty()
