@@ -130,56 +130,75 @@ def load_comprehensive_excel_toolkit():
     return toolkit
 
 def get_dynamic_brand_list_from_research(category, market, api_key):
-    """Dynamically research and extract brand list using AI - with quota management"""
+    """Dynamically research and extract brand list using AI - COMPLETELY DYNAMIC"""
     try:
         client = OpenAI(api_key=api_key)
         
-        # Shorter, more efficient research prompt to save tokens
+        # Enhanced research prompt based on category and market
         research_prompt = f"""
-        List 15 popular {category} brands in {market} market. 
-        Format: one brand name per line, no descriptions.
-        Example:
-        L'Oreal
-        Maybelline
-        Lakme
+        Research and provide a comprehensive list of current {category} brands available in {market} market in 2024-2025.
+        
+        Category Context: {category}
+        Market: {market}
+        
+        Requirements:
+        1. Provide 15-20 popular and well-known {category} brand names
+        2. Include both international and local {market} brands
+        3. Focus on brands that consumers actively purchase and recognize
+        4. List ONLY brand names, no descriptions or explanations
+        5. One brand name per line
+        6. Include premium, mid-range, and affordable brands
+        
+        Examples of what to research:
+        - If automotive: car manufacturers like Toyota, Honda, local brands
+        - If cosmetics: beauty brands like L'Oreal, Maybelline, local beauty brands
+        - If food: restaurant chains, food brands popular in the market
+        - If technology: phone/computer brands available in the market
+        
+        Provide output as simple list:
+        [Brand Name 1]
+        [Brand Name 2]
+        [Brand Name 3]
+        ...
+        
+        Focus on {category} brands in {market} market.
         """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Use cheaper model for brand research
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": f"List popular {category} brands in {market}. One name per line."},
+                {"role": "system", "content": f"You are a {market} market research expert specializing in {category} brands. Provide only current, accurate brand names available in {market}. No explanations, just the brand list."},
                 {"role": "user", "content": research_prompt}
             ],
-            temperature=0.1,
-            max_tokens=300  # Reduced tokens
+            temperature=0.1,  # Lower temperature for more consistent results
+            max_tokens=600
         )
         
-        # Extract and clean brand names
+        # Extract and clean brand names from response
         brand_text = response.choices[0].message.content.strip()
         brand_lines = [line.strip() for line in brand_text.split('\n') if line.strip()]
         
+        # Clean and validate brand names
         brands = []
         for line in brand_lines:
-            clean_brand = line.replace('•', '').replace('-', '').replace('*', '')
+            # Remove common formatting characters
+            clean_brand = line.replace('•', '').replace('-', '').replace('*', '').replace('1.', '').replace('2.', '')
             clean_brand = ''.join(char for char in clean_brand if not (char.isdigit() and char in '123456789.'))
             clean_brand = clean_brand.strip()
             
+            # Filter valid brand names
             if clean_brand and len(clean_brand) > 2 and len(clean_brand) < 50:
                 brands.append(clean_brand)
         
+        # Return successful research or fallback
         if len(brands) >= 5:
-            return brands[:15]
+            return brands[:20]  # Return top 20 brands
         else:
-            raise Exception(f"Only {len(brands)} brands found")
+            raise Exception(f"Insufficient brands found: {len(brands)}")
             
     except Exception as e:
-        # Return more realistic fallback brands based on category
-        if category.lower() in ['cosmetics', 'beauty', 'skincare', 'cream']:
-            return ['L\'Oreal', 'Maybelline', 'Lakme', 'MAC', 'Revlon', 'Clinique', 'Estee Lauder', 'Nykaa', 'Lotus Herbals', 'Forest Essentials']
-        elif category.lower() in ['automotive', 'car', 'vehicle']:
-            return ['Toyota', 'Honda', 'Hyundai', 'Maruti Suzuki', 'Tata Motors', 'Mahindra', 'BMW', 'Mercedes-Benz']
-        else:
-            return [f"Research failed: {str(e)[:30]}"] + ['Popular Brand 1', 'Popular Brand 2', 'Popular Brand 3', 'Popular Brand 4', 'Popular Brand 5']
+        # Return fallback brands with error indication
+        return [f"Research failed: {str(e)[:50]}"] + get_fallback_brands(category, market)
 
 def get_fallback_brands(category, market):
     """Minimal fallback when dynamic research fails"""
@@ -802,7 +821,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         # Part 1: Screener Questions
         status_text.text("🤖 Generating screener questions...")
         screener_prompt = f"""
-        You are an expert {survey_data['detected_category']} market researcher specializing in {survey_data['market_country']} market research.
+        You are an expert market researcher specializing in {survey_data['detected_category']} research. 
 
         Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this {survey_data['detected_category']} survey:
         
@@ -810,17 +829,14 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
         Category: {survey_data['detected_category']}
-        Available Brands: {brand_list_text}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {question_counts['screener']} questions numbered Q1. Q2. Q3. etc.
-        - Focus ONLY on {survey_data['detected_category']}-specific screening based on survey objective
-        - Use REAL {survey_data['detected_category']} brands from research: {top_10_brands}
-        - NEVER use "Brand A, Brand B, Brand C" - always use real brand names
+        - Focus on {survey_data['detected_category']}-specific screening based on the survey objective
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
         - Include termination logic where applicable
-        - NO QUESTIONS ABOUT OTHER CATEGORIES (cars, EVs, etc.)
+        - NO GENERIC QUESTIONS - ONLY {survey_data['detected_category'].upper()}-SPECIFIC
         
         EXAMPLE FORMAT:
         Q1. What is your age?
@@ -836,10 +852,9 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         Statistical Methods: Descriptive Statistics, Cross-tabulation, Demographic Analysis
         Fraud Detection: No
         Quality Checks: Age range validation, logical consistency
-        Termination Logic: Terminate if outside target age range for this {survey_data['detected_category']} study
+        Termination Logic: Terminate if outside target age range for this study
         
-        Generate all {question_counts['screener']} screener questions focusing ONLY on {survey_data['detected_category']} qualification.
-        Use real brand names: {brand_list_text}
+        Generate all {question_counts['screener']} screener questions focusing on {survey_data['detected_category']} qualification based on the survey objective provided.
         """
         
         screener_response = client.chat.completions.create(
