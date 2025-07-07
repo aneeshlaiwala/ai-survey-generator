@@ -846,6 +846,9 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         - Include matrix questions with 5-point scales
         - Each answer option on separate line with dash (-)
         - Focus ONLY on {detected_category} category - NO OTHER CATEGORIES
+        - ABSOLUTELY NO AUTOMOTIVE, EV, CAR, or VEHICLE questions unless category is automotive
+        - ABSOLUTELY NO TECHNOLOGY questions unless category is technology
+        - ONLY {detected_category.upper()} QUESTIONS
         
         MANDATORY MATRIX QUESTIONS FOR {detected_category.upper()}:
         
@@ -867,13 +870,16 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         
         Continue with remaining questions about:
         - {detected_category} purchase journey factors
-        - Brand loyalty and switching behavior
-        - {detected_category} usage patterns
+        - Brand loyalty and switching behavior in {detected_category}
+        - {detected_category} usage patterns and frequency
         - Satisfaction with current {detected_category} products
         - Information sources for {detected_category} research
+        - {detected_category} shopping preferences and channels
         
         Use brands from: {brand_list_text}
-        Focus ONLY on {detected_category} - no other product categories.
+        
+        STRICT RULE: Focus ONLY on {detected_category} - no other product categories.
+        DO NOT mention cars, vehicles, EVs, technology, or any other category unless it IS the detected category.
         """
         
         core_part2_response = client.chat.completions.create(
@@ -925,7 +931,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         - PhD/Doctorate
         - Others (specify)
         
-        Purpose: Educational profiling for {detected_category} adoption analysis
+        Purpose: Educational profiling for {detected_category} market research study
         Data Type: Categorical_Ordinal
         Statistical Methods: Demographic analysis, Education-based segmentation, Cross-tabulation
         
@@ -968,6 +974,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 - Include complete metadata for each question
                 - Use brands: {brand_list_text}
                 - Focus ONLY on {detected_category} category
+                - NO OTHER CATEGORIES (no EV, no automotive unless detected category is automotive)
                 
                 EXAMPLE FORMAT:
                 Q{actual_count + 1}. [Question text about {detected_category}]
