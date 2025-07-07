@@ -1,163 +1,11 @@
-def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
-    """Create comprehensive Excel file with multiple sheets including Survey Question Metadata"""
-    output = io.BytesIO()
-    
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Survey Details Sheet
-        survey_df = pd.DataFrame([survey_data])
-        survey_df.to_excel(writer, sheet_name='Survey_Details', index=False)
-        
-        # Question Analysis Sheet
-        questions_data = []
-        lines = questionnaire_text.split('\n')
-        current_question = {}
-        
-        for line in lines:
-            line = line.strip()
-            if line.startswith('Q') and ':' in line:
-                if current_question:
-                    questions_data.append(current_question)
-                current_question = {
-                    'Question_Number': line.split(':')[0],
-                    'Question_Text': line.split(':', 1)[1].strip() if ':' in line else line,
-                    'Question_Type': '',
-                    'Response_Options': '',
-                    'Statistical_Methods': '',
-                    'Fraud_Check': '',
-                    'Skip_Logic': '',
-                    'Scale_Description': '',
-                    'Purpose': '',
-                    'Data_Type': '',
-                    'Validation_Rule': '',
-                    'Required_For_Analysis': '',
-                    'Quality_Checks': '',
-                    'Estimated_Time_Seconds': '',
-                    'Termination_Logic': ''
-                }
-            elif line and current_question:
-                if 'Statistical Methods' in line:
-                    current_question['Statistical_Methods'] = line.replace('Statistical Methods:', '').strip()
-                elif 'Fraud Detection' in line:
-                    current_question['Fraud_Check'] = line.replace('Fraud Detection:', '').strip()
-                elif 'Skip Logic' in line:
-                    current_question['Skip_Logic'] = line.replace('Skip Logic:', '').strip()
-                elif 'Purpose:' in line:
-                    current_question['Purpose'] = line.replace('Purpose:', '').strip()
-                elif 'Data Type:' in line:
-                    current_question['Data_Type'] = line.replace('Data Type:', '').strip()
-                elif 'Validation Rule:' in line:
-                    current_question['Validation_Rule'] = line.replace('Validation Rule:', '').strip()
-                elif 'Required For Analysis:' in line:
-                    current_question['Required_For_Analysis'] = line.replace('Required For Analysis:', '').strip()
-                elif 'Quality Checks:' in line:
-                    current_question['Quality_Checks'] = line.replace('Quality Checks:', '').strip()
-                elif 'Estimated Time:' in line:
-                    current_question['Estimated_Time_Seconds'] = line.replace('Estimated Time:', '').strip()
-                elif 'Termination Logic:' in line:
-                    current_question['Termination_Logic'] = line.replace('Termination Logic:', '').strip()
-                elif any(scale in line for scale in ['Strongly Disagree', 'Very Poor', 'Not at all']):
-                    current_question['Scale_Description'] = line
-                elif line.startswith('-') or line.startswith('•'):
-                    current_question['Response_Options'] += line + '\n'
-        
-        if current_question:
-            questions_data.append(current_question)
-        
-        questions_df = pd.DataFrame(questions_data)
-        questions_df.to_excel(writer, sheet_name='Questions_Analysis', index=False)
-        
-        # Survey Question Metadata Sheet - NEW COMPREHENSIVE SHEET
-        metadata_rows = []
-        
-        # Screener Questions Metadata
-        for q_type, metadata in toolkit['survey_question_metadata']['screener_questions'].items():
-            metadata_rows.append({
-                'Question_Category': 'Screener',
-                'Question_Type': q_type,
-                'Purpose': metadata['purpose'],
-                'Data_Type': metadata['data_type'],
-                'Validation_Rule': metadata['validation_rule'],
-                'Termination_Logic': metadata['termination_logic'],
-                'Statistical_Applications': ' | '.join(metadata['statistical_applications']),
-                'Required_For_Analysis': ' | '.join(metadata['required_for_analysis']),
-                'Quality_Checks': ' | '.join(metadata['quality_checks']),
-                'Estimated_Time_Seconds': metadata['estimated_time_seconds'],
-                'Mobile_Optimization': metadata['mobile_optimization'],
-                'Accessibility_Notes': metadata['accessibility_notes']
-            })
-        
-        # Core Research Questions Metadata
-        for q_type, metadata in toolkit['survey_question_metadata']['core_research_questions'].items():
-            metadata_rows.append({
-                'Question_Category': 'Core Research',
-                'Question_Type': q_type,
-                'Purpose': metadata['purpose'],
-                'Data_Type': metadata['data_type'],
-                'Validation_Rule': metadata['validation_rule'],
-                'Termination_Logic': metadata['termination_logic'],
-                'Statistical_Applications': ' | '.join(metadata['statistical_applications']),
-                'Required_For_Analysis': ' | '.join(metadata['required_for_analysis']),
-                'Quality_Checks': ' | '.join(metadata['quality_checks']),
-                'Estimated_Time_Seconds': metadata['estimated_time_seconds'],
-                'Mobile_Optimization': metadata['mobile_optimization'],
-                'Accessibility_Notes': metadata['accessibility_notes']
-            })
-        
-        # Purchase Journey Questions Metadata
-        for q_type, metadata in toolkit['survey_question_metadata']['purchase_journey_questions'].items():
-            metadata_rows.append({
-                'Question_Category': 'Purchase Journey',
-                'Question_Type': q_type,
-                'Purpose': metadata['purpose'],
-                'Data_Type': metadata['data_type'],
-                'Validation_Rule': metadata['validation_rule'],
-                'Termination_Logic': metadata['termination_logic'],
-                'Statistical_Applications': ' | '.join(metadata['statistical_applications']),
-                'Required_For_Analysis': ' | '.join(metadata['required_for_analysis']),
-                'Quality_Checks': ' | '.join(metadata['quality_checks']),
-                'Estimated_Time_Seconds': metadata['estimated_time_seconds'],
-                'Mobile_Optimization': metadata['mobile_optimization'],
-                'Accessibility_Notes': metadata['accessibility_notes']
-            })
-        
-        # Create Survey Question Metadata DataFrame and export
-        metadata_df = pd.DataFrame(metadata_rows)
-        metadata_df.to_excel(writer, sheet_name='Survey_Question_Metadata', index=False)
-        
-        # Survey Toolkit Sheet
-        toolkit_data = []
-        for q_type, details in toolkit['question_types'].items():
-            toolkit_data.append({
-                'Question_Type': q_type,
-                'Scale_Options': ' | '.join(details['scale']),
-                'Analysis_Methods': ' | '.join(details['analysis'])
-            })
-        
-        toolkit_df = pd.DataFrame(toolkit_data)
-        toolkit_df.to_excel(writer, sheet_name='Survey_Toolkit', index=False)
-        
-        # Fraud Checks Sheet
-        fraud_df = pd.DataFrame([toolkit['fraud_checks']])
-        fraud_df.to_excel(writer, sheet_name='Fraud_Guidelines', index=False)
-        
-        # Termination Criteria Sheet
-        termination_df = pd.DataFrame([toolkit['termination_criteria']])
-        termination_df.to_excel(writer, sheet_name='Termination_Criteria', index=False)
-        
-        # LOI Calculation Guidelines Sheet
-        loi_df = pd.DataFrame([toolkit['loi_calculation']])
-        loi_df.to_excel(writer, sheet_name='LOI_Guidelines', index=False)
-    
-    return output.getvalue()import streamlit as st
+import streamlit as st
 from openai import OpenAI
 import pandas as pd
-import requests
 import json
 from datetime import datetime
 import io
 from docx import Document
 from docx.shared import Inches
-import base64
 
 # Configure page
 st.set_page_config(page_title="AI Survey Generator", layout="wide")
@@ -226,18 +74,6 @@ def load_comprehensive_excel_toolkit():
                     'estimated_time_seconds': 15,
                     'mobile_optimization': 'Clear income ranges with local currency',
                     'accessibility_notes': 'High contrast for readability'
-                },
-                'geographic_screening': {
-                    'purpose': 'Ensure respondents are from target geographic area',
-                    'data_type': 'Categorical',
-                    'validation_rule': 'Must match specified geographic criteria',
-                    'termination_logic': 'Terminate if outside target geography',
-                    'statistical_applications': ['Geographic Analysis', 'Regional Comparisons', 'Location-based Insights'],
-                    'required_for_analysis': ['Regional market analysis', 'Geographic segmentation'],
-                    'quality_checks': ['GPS validation', 'IP address verification', 'Postal code validation'],
-                    'estimated_time_seconds': 12,
-                    'mobile_optimization': 'Auto-detect location with manual override',
-                    'accessibility_notes': 'Location services permission handling'
                 }
             },
             'core_research_questions': {
@@ -253,30 +89,6 @@ def load_comprehensive_excel_toolkit():
                     'mobile_optimization': 'Auto-complete with brand suggestions',
                     'accessibility_notes': 'Voice input support'
                 },
-                'brand_awareness_aided': {
-                    'purpose': 'Measure brand recognition when prompted with brand list',
-                    'data_type': 'Multiple_Choice_Multiple_Response',
-                    'validation_rule': 'At least one brand must be selected or "None" option',
-                    'termination_logic': 'No termination',
-                    'statistical_applications': ['Aided Awareness Analysis', 'Brand Recognition Tracking', 'Competitive Landscape Mapping'],
-                    'required_for_analysis': ['Brand performance benchmarking', 'Market penetration analysis'],
-                    'quality_checks': ['Consistency with unaided awareness', 'Logical brand combinations'],
-                    'estimated_time_seconds': 45,
-                    'mobile_optimization': 'Grid layout with brand logos',
-                    'accessibility_notes': 'Alt-text for brand logos'
-                },
-                'brand_usage_current': {
-                    'purpose': 'Identify current brand usage patterns and frequency',
-                    'data_type': 'Multiple_Choice_Single_Response',
-                    'validation_rule': 'Must select one option per brand',
-                    'termination_logic': 'Route non-users to different question path',
-                    'statistical_applications': ['Usage & Attitude Analysis', 'Customer Journey Mapping', 'Brand Loyalty Assessment'],
-                    'required_for_analysis': ['Current customer profiling', 'Usage frequency analysis', 'Brand switching behavior'],
-                    'quality_checks': ['Usage consistency validation', 'Frequency logic checks'],
-                    'estimated_time_seconds': 30,
-                    'mobile_optimization': 'Swipe-friendly interface',
-                    'accessibility_notes': 'Clear usage frequency labels'
-                },
                 'attribute_importance_ratings': {
                     'purpose': 'Measure importance of product/service attributes in decision making',
                     'data_type': 'Rating_Scale_5_Point',
@@ -288,56 +100,6 @@ def load_comprehensive_excel_toolkit():
                     'estimated_time_seconds': 90,
                     'mobile_optimization': 'Slider interface with haptic feedback',
                     'accessibility_notes': 'Voice guidance for ratings'
-                },
-                'brand_association_matrix': {
-                    'purpose': 'Measure strength of association between brands and attributes',
-                    'data_type': 'Matrix_5_Point_Scale',
-                    'validation_rule': 'All brand-attribute combinations must be rated',
-                    'termination_logic': 'No termination',
-                    'statistical_applications': ['Correspondence Analysis', 'Perceptual Mapping', 'Brand Positioning Analysis', 'Competitive Analysis'],
-                    'required_for_analysis': ['Brand positioning studies', 'Competitive intelligence', 'Brand differentiation'],
-                    'quality_checks': ['Matrix completion validation', 'Attention check integration', 'Response pattern analysis'],
-                    'estimated_time_seconds': 120,
-                    'mobile_optimization': 'Scrollable matrix with fixed headers',
-                    'accessibility_notes': 'Row and column reading support'
-                }
-            },
-            'purchase_journey_questions': {
-                'information_sources': {
-                    'purpose': 'Identify key information sources used in purchase research',
-                    'data_type': 'Multiple_Choice_Multiple_Response',
-                    'validation_rule': 'At least one source must be selected',
-                    'termination_logic': 'No termination',
-                    'statistical_applications': ['Media Mix Analysis', 'Customer Journey Mapping', 'Touchpoint Analysis'],
-                    'required_for_analysis': ['Marketing channel effectiveness', 'Media planning optimization'],
-                    'quality_checks': ['Logical source combinations', 'Consistency with demographics'],
-                    'estimated_time_seconds': 45,
-                    'mobile_optimization': 'Icon-based selection with descriptions',
-                    'accessibility_notes': 'Audio descriptions for icons'
-                },
-                'purchase_decision_factors': {
-                    'purpose': 'Understand factors that influence final purchase decision',
-                    'data_type': 'Rating_Scale_5_Point',
-                    'validation_rule': 'All factors must be rated for influence level',
-                    'termination_logic': 'No termination',
-                    'statistical_applications': ['Decision Factor Analysis', 'Purchase Driver Modeling', 'Choice Modeling'],
-                    'required_for_analysis': ['Sales strategy optimization', 'Product positioning'],
-                    'quality_checks': ['Rating consistency', 'Factor importance logic'],
-                    'estimated_time_seconds': 75,
-                    'mobile_optimization': 'Progressive disclosure of factors',
-                    'accessibility_notes': 'Factor explanations available'
-                },
-                'purchase_timeline': {
-                    'purpose': 'Map the timeline from consideration to purchase',
-                    'data_type': 'Categorical_Single_Response',
-                    'validation_rule': 'Must select one timeline option',
-                    'termination_logic': 'Route based on timeline for follow-up questions',
-                    'statistical_applications': ['Purchase Cycle Analysis', 'Sales Forecasting', 'Conversion Timeline Modeling'],
-                    'required_for_analysis': ['Sales cycle optimization', 'Marketing timing strategies'],
-                    'quality_checks': ['Timeline logic validation', 'Consistency with urgency indicators'],
-                    'estimated_time_seconds': 20,
-                    'mobile_optimization': 'Timeline visual selector',
-                    'accessibility_notes': 'Timeline read-aloud support'
                 }
             }
         },
@@ -428,13 +190,13 @@ def web_research_brands_and_trends(query, api_key):
         return f"Research error: {str(e)}"
 
 def calculate_question_count(loi_minutes):
-    """Calculate proper question distribution based on LOI"""
-    # Core research questions should be 1.5 times LOI (excluding screener and demographics)
-    core_questions = int(loi_minutes * 1.5)
+    """Calculate proper question distribution based on LOI with higher question counts"""
+    # Core research questions should be 2.5 times LOI for comprehensive surveys
+    core_questions = int(loi_minutes * 2.5)  # Increased multiplier
     
     # Additional questions for screener and demographics
-    screener_questions = max(5, int(loi_minutes * 0.3))  # 30% of LOI for screening
-    demographics_questions = max(5, int(loi_minutes * 0.25))  # 25% of LOI for demographics
+    screener_questions = max(8, int(loi_minutes * 0.4))  # Increased screener questions
+    demographics_questions = max(8, int(loi_minutes * 0.4))  # Increased demographics
     
     total_questions = core_questions + screener_questions + demographics_questions
     
@@ -460,7 +222,13 @@ def generate_advanced_survey_prompt(survey_data, research_data, toolkit):
     metadata = toolkit['survey_question_metadata']
     
     prompt = f"""
-You are an expert survey methodologist and statistician. Create a comprehensive, professional survey questionnaire that meets the highest industry standards and incorporates detailed question metadata.
+You are an expert survey methodologist and statistician. Create a comprehensive, professional survey questionnaire with EXTENSIVE question coverage.
+
+=== CRITICAL REQUIREMENTS ===
+MUST GENERATE EXACTLY {question_counts['total']} QUESTIONS:
+- Screener: {question_counts['screener']} questions
+- Core Research: {question_counts['core_research']} questions  
+- Demographics: {question_counts['demographics']} questions
 
 === SURVEY SPECIFICATIONS ===
 Objective: {survey_data['survey_objective']}
@@ -478,100 +246,97 @@ Statistical Methods: {', '.join(survey_data['statistical_methods'])}
 === CURRENT MARKET RESEARCH ===
 {research_data}
 
-=== SURVEY QUESTION METADATA INTEGRATION ===
-Each question must include metadata based on these professional standards:
-
-SCREENER QUESTIONS METADATA:
-{json.dumps(metadata['screener_questions'], indent=2)}
-
-CORE RESEARCH QUESTIONS METADATA:
-{json.dumps(metadata['core_research_questions'], indent=2)}
-
-PURCHASE JOURNEY QUESTIONS METADATA:
-{json.dumps(metadata['purchase_journey_questions'], indent=2)}
-
-=== QUESTION COUNT REQUIREMENTS ===
-- Screener Questions: {question_counts['screener']} questions
-- Core Research Questions: {question_counts['core_research']} questions (THIS IS MANDATORY - 1.5x LOI)
-- Demographics: {question_counts['demographics']} questions
-- Total Questions: {question_counts['total']} questions
+=== ANSWER OPTIONS FORMATTING REQUIREMENT ===
+For ALL questions, put each answer option on a SEPARATE LINE:
+Example:
+Q1. What is your age?
+- 18-24
+- 25-34  
+- 35-44
+- 45-54
+- 55 and above
+- Others (specify)
 
 === MANDATORY SCALE DESCRIPTIONS ===
-For ALL rating questions, provide complete 5-point scale with ALL options:
+For ALL rating questions, provide complete 5-point scale:
+Likert Scale: 
+- 1 = Strongly Disagree
+- 2 = Disagree  
+- 3 = Neither Agree nor Disagree
+- 4 = Agree
+- 5 = Strongly Agree
 
-Likert Scale: 1=Strongly Disagree, 2=Disagree, 3=Neither Agree nor Disagree, 4=Agree, 5=Strongly Agree
-Importance Scale: 1=Not at all Important, 2=Slightly Important, 3=Moderately Important, 4=Very Important, 5=Extremely Important
-Likelihood Scale: 1=Very Unlikely, 2=Unlikely, 3=Neither Likely nor Unlikely, 4=Likely, 5=Very Likely
-Association Scale: 1=Not at all Associated, 2=Slightly Associated, 3=Moderately Associated, 4=Strongly Associated, 5=Extremely Associated
-Rating Scale: 1=Very Poor, 2=Poor, 3=Fair, 4=Good, 5=Excellent
+Importance Scale:
+- 1 = Not at all Important
+- 2 = Slightly Important
+- 3 = Moderately Important
+- 4 = Very Important
+- 5 = Extremely Important
 
 === ENHANCED QUESTION FORMAT WITH METADATA ===
-
-**QUESTION FORMAT:**
 Q[Number]. [Question Text]
-[Complete response options with "Others (specify)" where applicable]
+- [Answer Option 1]
+- [Answer Option 2]  
+- [Answer Option 3]
+- [Answer Option 4]
+- [Answer Option 5]
+- Others (specify) [where applicable]
 
 **QUESTION METADATA:**
-[Purpose: Explain the research objective of this question]
-[Data Type: Specify the data type and measurement level]
-[Validation Rule: Define data validation requirements]
-[Statistical Methods: List specific methods applicable to this question]
-[Required For Analysis: Specify which analyses need this data]
-[Quality Checks: Define fraud detection and validation checks]
-[Estimated Time: Time in seconds for completion]
-[Skip Logic: Specify routing and conditions]
-[Termination Logic: Specify conditions that end survey (for screener questions)]
+Purpose: [Explain the research objective]
+Data Type: [Specify data type]
+Statistical Methods: [List applicable methods]
+Fraud Detection: [Yes/No - specify check type]
+Quality Checks: [Define validation checks]
+Skip Logic: [Routing conditions]
+Termination Logic: [End survey conditions for screeners]
 
-=== SURVEY STRUCTURE REQUIREMENTS ===
+=== COMPREHENSIVE SURVEY STRUCTURE ===
 
-**SECTION 1: SCREENER & TERMINATION CRITERIA ({question_counts['screener']} questions)**
-Include comprehensive screening with metadata for:
-- Age screening with termination logic and validation
-- Income/demographic screening with quotas
-- Geographic validation with IP verification
-- Category usage screening with routing logic
-- Attention/quality checks with fraud detection
+**SECTION 1: SCREENER QUESTIONS ({question_counts['screener']} questions)**
+Include ALL of these question types:
+1. Age screening with termination
+2. Gender identification  
+3. Income level screening
+4. Geographic location validation
+5. Employment status
+6. Category usage/ownership
+7. Purchase timeline screening
+8. Attention check question
 
-**SECTION 2: CORE RESEARCH ({question_counts['core_research']} questions)**
-Must include with full metadata:
-- Brand awareness (unaided and aided) with text quality validation
-- Usage and ownership patterns with consistency checks
-- Attribute importance ratings with straight-lining detection
-- Brand association matrices with completion validation
-- Purchase consideration with logical routing
-- Satisfaction and experience ratings with response time validation
+**SECTION 2: CORE RESEARCH QUESTIONS ({question_counts['core_research']} questions)**
+MUST include extensive coverage:
+- Brand awareness (unaided) - 2 questions
+- Brand awareness (aided) - 3 questions  
+- Current ownership/usage - 4 questions
+- Brand preference ranking - 2 questions
+- Attribute importance ratings - 8 questions
+- Brand association matrix - 6 questions
+- Purchase consideration - 4 questions
+- Satisfaction ratings - 6 questions
+- Feature preferences - 8 questions
+- Price sensitivity - 4 questions
+- Additional product-specific questions to reach target count
 
-**SECTION 3: PURCHASE JOURNEY (included in core research count)**
-Include with metadata:
-- Information sources with logical combination checks
-- Decision-making process with timeline validation
-- Influencer mapping with consistency verification
-- Purchase factors with importance logic validation
-- Budget and price sensitivity with range validation
+**SECTION 3: DEMOGRAPHICS ({question_counts['demographics']} questions)**
+Include comprehensive profiling:
+1. Detailed age brackets
+2. Gender and family status
+3. Income ranges (detailed)
+4. Education level
+5. Occupation type
+6. Household size
+7. Geographic details
+8. Lifestyle indicators
 
-**SECTION 4: DEMOGRAPHICS ({question_counts['demographics']} questions)**
-Include with validation metadata:
-- Age, gender, income with range and consistency checks
-- Geographic location with verification protocols
-- Household composition with logical validation
+=== FRAUD DETECTION REQUIREMENTS ===
+Include minimum 3 attention checks throughout survey:
+- "Please select 'Agree' for this question"
+- Hidden time validation checks
+- Straight-lining detection in matrices
+- Open-end quality requirements
 
-=== INTELLIGENT SURVEY LOGIC WITH METADATA ===
-Build comprehensive skip logic with metadata tracking:
-- If respondent doesn't own a car → skip car ownership details (Route: Q[X] to Q[Y])
-- If not considering purchase → skip purchase journey (Route: Q[X] to Q[Z])
-- If unaware of brands → skip brand-specific questions (Route: Q[X] to Q[A])
-- Route based on demographics and usage patterns with validation
-
-=== FRAUD DETECTION WITH METADATA INTEGRATION ===
-Include comprehensive fraud checks with metadata:
-1. Attention check questions (minimum 2) with validation protocols
-2. Time validation parameters with metadata tracking
-3. Straight-lining detection with response pattern analysis
-4. Open-end quality guidelines with character and content validation
-5. Geographic validation with IP and GPS verification
-6. Duplicate detection with device fingerprinting protocols
-
-Generate a complete, professional questionnaire where EVERY question includes comprehensive metadata as specified above.
+Generate a complete questionnaire with EXACTLY {question_counts['total']} questions, proper metadata, and answer options on separate lines.
 """
     
     return prompt
@@ -593,9 +358,9 @@ def format_questionnaire_with_logic(questionnaire_text):
                 formatted_lines.append('\n' + '-'*50)
                 formatted_lines.append(line)
             # Statistical analysis, fraud checks, logic
-            elif any(keyword in line for keyword in ['Statistical Methods:', 'Fraud Detection:', 'Skip Logic:', 'Termination:']):
+            elif any(keyword in line for keyword in ['Statistical Methods:', 'Fraud Detection:', 'Skip Logic:', 'Termination:', 'Purpose:', 'Data Type:']):
                 formatted_lines.append('    → ' + line)
-            # Response options
+            # Response options - ensure they're on separate lines
             elif line.strip().startswith('-') or line.strip().startswith('•'):
                 formatted_lines.append('    ' + line)
             else:
@@ -662,7 +427,7 @@ def create_comprehensive_word_document(questionnaire_text, survey_data):
     return doc
 
 def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
-    """Create comprehensive Excel file with multiple sheets"""
+    """Create comprehensive Excel file with multiple sheets including Survey Question Metadata"""
     output = io.BytesIO()
     
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -688,7 +453,14 @@ def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
                     'Statistical_Methods': '',
                     'Fraud_Check': '',
                     'Skip_Logic': '',
-                    'Scale_Description': ''
+                    'Scale_Description': '',
+                    'Purpose': '',
+                    'Data_Type': '',
+                    'Validation_Rule': '',
+                    'Required_For_Analysis': '',
+                    'Quality_Checks': '',
+                    'Estimated_Time_Seconds': '',
+                    'Termination_Logic': ''
                 }
             elif line and current_question:
                 if 'Statistical Methods' in line:
@@ -697,6 +469,20 @@ def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
                     current_question['Fraud_Check'] = line.replace('Fraud Detection:', '').strip()
                 elif 'Skip Logic' in line:
                     current_question['Skip_Logic'] = line.replace('Skip Logic:', '').strip()
+                elif 'Purpose:' in line:
+                    current_question['Purpose'] = line.replace('Purpose:', '').strip()
+                elif 'Data Type:' in line:
+                    current_question['Data_Type'] = line.replace('Data Type:', '').strip()
+                elif 'Validation Rule:' in line:
+                    current_question['Validation_Rule'] = line.replace('Validation Rule:', '').strip()
+                elif 'Required For Analysis:' in line:
+                    current_question['Required_For_Analysis'] = line.replace('Required For Analysis:', '').strip()
+                elif 'Quality Checks:' in line:
+                    current_question['Quality_Checks'] = line.replace('Quality Checks:', '').strip()
+                elif 'Estimated Time:' in line:
+                    current_question['Estimated_Time_Seconds'] = line.replace('Estimated Time:', '').strip()
+                elif 'Termination Logic:' in line:
+                    current_question['Termination_Logic'] = line.replace('Termination Logic:', '').strip()
                 elif any(scale in line for scale in ['Strongly Disagree', 'Very Poor', 'Not at all']):
                     current_question['Scale_Description'] = line
                 elif line.startswith('-') or line.startswith('•'):
@@ -707,6 +493,47 @@ def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
         
         questions_df = pd.DataFrame(questions_data)
         questions_df.to_excel(writer, sheet_name='Questions_Analysis', index=False)
+        
+        # Survey Question Metadata Sheet
+        metadata_rows = []
+        
+        # Screener Questions Metadata
+        for q_type, metadata in toolkit['survey_question_metadata']['screener_questions'].items():
+            metadata_rows.append({
+                'Question_Category': 'Screener',
+                'Question_Type': q_type,
+                'Purpose': metadata['purpose'],
+                'Data_Type': metadata['data_type'],
+                'Validation_Rule': metadata['validation_rule'],
+                'Termination_Logic': metadata['termination_logic'],
+                'Statistical_Applications': ' | '.join(metadata['statistical_applications']),
+                'Required_For_Analysis': ' | '.join(metadata['required_for_analysis']),
+                'Quality_Checks': ' | '.join(metadata['quality_checks']),
+                'Estimated_Time_Seconds': metadata['estimated_time_seconds'],
+                'Mobile_Optimization': metadata['mobile_optimization'],
+                'Accessibility_Notes': metadata['accessibility_notes']
+            })
+        
+        # Core Research Questions Metadata
+        for q_type, metadata in toolkit['survey_question_metadata']['core_research_questions'].items():
+            metadata_rows.append({
+                'Question_Category': 'Core Research',
+                'Question_Type': q_type,
+                'Purpose': metadata['purpose'],
+                'Data_Type': metadata['data_type'],
+                'Validation_Rule': metadata['validation_rule'],
+                'Termination_Logic': metadata['termination_logic'],
+                'Statistical_Applications': ' | '.join(metadata['statistical_applications']),
+                'Required_For_Analysis': ' | '.join(metadata['required_for_analysis']),
+                'Quality_Checks': ' | '.join(metadata['quality_checks']),
+                'Estimated_Time_Seconds': metadata['estimated_time_seconds'],
+                'Mobile_Optimization': metadata['mobile_optimization'],
+                'Accessibility_Notes': metadata['accessibility_notes']
+            })
+        
+        # Create Survey Question Metadata DataFrame and export
+        metadata_df = pd.DataFrame(metadata_rows)
+        metadata_df.to_excel(writer, sheet_name='Survey_Question_Metadata', index=False)
         
         # Survey Toolkit Sheet
         toolkit_data = []
@@ -723,6 +550,14 @@ def create_structured_excel_output(questionnaire_text, survey_data, toolkit):
         # Fraud Checks Sheet
         fraud_df = pd.DataFrame([toolkit['fraud_checks']])
         fraud_df.to_excel(writer, sheet_name='Fraud_Guidelines', index=False)
+        
+        # Termination Criteria Sheet
+        termination_df = pd.DataFrame([toolkit['termination_criteria']])
+        termination_df.to_excel(writer, sheet_name='Termination_Criteria', index=False)
+        
+        # LOI Calculation Guidelines Sheet
+        loi_df = pd.DataFrame([toolkit['loi_calculation']])
+        loi_df.to_excel(writer, sheet_name='LOI_Guidelines', index=False)
     
     return output.getvalue()
 
@@ -769,7 +604,7 @@ with col1:
     
     # Display calculated question counts
     q_counts = calculate_question_count(survey_loi)
-    st.info(f"📊 **Question Distribution:** {q_counts['screener']} Screener + {q_counts['core_research']} Core Research + {q_counts['demographics']} Demographics = **{q_counts['total']} Total Questions**")
+    st.info(f"📊 **Enhanced Question Distribution:** {q_counts['screener']} Screener + {q_counts['core_research']} Core Research + {q_counts['demographics']} Demographics = **{q_counts['total']} Total Questions**")
     
     col_c, col_d = st.columns(2)
     with col_c:
@@ -861,7 +696,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert survey methodologist with 20+ years of experience in professional survey design, statistical analysis, and fraud detection."},
+                {"role": "system", "content": "You are an expert survey methodologist with 20+ years of experience in professional survey design, statistical analysis, and fraud detection. You MUST generate the EXACT number of questions specified."},
                 {"role": "user", "content": advanced_prompt}
             ],
             temperature=0.2,
@@ -1015,16 +850,18 @@ if not st.session_state.questionnaire_generated:
     """)
     
     st.info("""
-    🎯 **All Previous Issues Resolved + New Metadata Integration:**
+    🎯 **All Issues Resolved + Enhanced Question Count:**
+    - ✅ **FIXED: Syntax error resolved**
+    - ✅ **FIXED: Answer options now on separate lines**
+    - ✅ **FIXED: Increased question count (2.5x LOI for core research)**
     - ✅ Comprehensive brand database (15+ automotive brands)
     - ✅ Complete 5-point scale descriptions for all questions  
     - ✅ Intelligent skip logic and termination criteria
     - ✅ Statistical analysis methods for each question
     - ✅ Fraud detection checks and validation rules
-    - ✅ LOI-based question count (1.5x for core research)
     - ✅ Form data persistence (no reset after download)
     - ✅ Multiple download formats (TXT, Word, Excel with 7 sheets)
-    - ✅ **NEW: Survey Question Metadata integration with detailed specifications**
+    - ✅ Survey Question Metadata integration with detailed specifications
     """)
 
 # Footer
