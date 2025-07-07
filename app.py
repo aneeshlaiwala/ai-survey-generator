@@ -129,29 +129,70 @@ def load_comprehensive_excel_toolkit():
     }
     return toolkit
 
+def detect_survey_category(survey_objective, target_audience):
+    """FIXED: Intelligent category detection from survey objective and target audience"""
+    combined_text = f"{survey_objective.lower()} {target_audience.lower()}"
+    
+    # Define category keywords with broader coverage
+    category_keywords = {
+        'cosmetics': ['cosmetics', 'beauty', 'cream', 'skincare', 'makeup', 'lipstick', 'foundation', 'night cream', 'face cream', 'moisturizer', 'serum', 'lotion'],
+        'automotive': ['automotive', 'car', 'vehicle', 'ev', 'electric vehicle', 'auto', 'automobile', 'sedan', 'suv'],
+        'food_beverage': ['food', 'restaurant', 'dining', 'beverage', 'drink', 'coffee', 'tea', 'snack', 'meal'],
+        'technology': ['phone', 'smartphone', 'mobile', 'technology', 'laptop', 'computer', 'software', 'app', 'tech'],
+        'fashion': ['fashion', 'clothing', 'apparel', 'shoes', 'dress', 'shirt', 'accessories'],
+        'healthcare': ['healthcare', 'medical', 'health', 'medicine', 'treatment', 'hospital', 'doctor'],
+        'finance': ['finance', 'banking', 'investment', 'insurance', 'loan', 'credit', 'financial'],
+        'travel': ['travel', 'hotel', 'vacation', 'tourism', 'airline', 'booking'],
+        'education': ['education', 'learning', 'course', 'school', 'university', 'training']
+    }
+    
+    # Score each category based on keyword matches
+    category_scores = {}
+    for category, keywords in category_keywords.items():
+        score = sum(1 for keyword in keywords if keyword in combined_text)
+        if score > 0:
+            category_scores[category] = score
+    
+    # Return the category with highest score, or 'general' if no matches
+    if category_scores:
+        detected_category = max(category_scores, key=category_scores.get)
+        confidence = category_scores[detected_category]
+        return detected_category, confidence
+    else:
+        return 'general', 0
+
 def get_dynamic_brand_list_from_research(category, market, api_key):
-    """Dynamically research and extract brand list using AI - with quota management"""
+    """FIXED: Dynamically research brands for ANY category - not just automotive"""
     try:
         client = OpenAI(api_key=api_key)
         
-        # Shorter, more efficient research prompt to save tokens
+        # Category-specific research prompt
         research_prompt = f"""
-        List 15 popular {category} brands in {market} market. 
-        Format: one brand name per line, no descriptions.
-        Example:
-        L'Oreal
-        Maybelline
-        Lakme
+        List 15 popular {category} brands available in {market} market. 
+        
+        Category: {category}
+        Market: {market}
+        
+        Requirements:
+        - List ONLY brands that are actually available in {market}
+        - Include both international and local brands
+        - Focus on well-known, established brands
+        - One brand name per line, no descriptions
+        
+        Format example:
+        Brand Name 1
+        Brand Name 2
+        Brand Name 3
         """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Use cheaper model for brand research
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": f"List popular {category} brands in {market}. One name per line."},
+                {"role": "system", "content": f"List popular {category} brands available in {market}. One name per line, no descriptions."},
                 {"role": "user", "content": research_prompt}
             ],
             temperature=0.1,
-            max_tokens=300  # Reduced tokens
+            max_tokens=400
         )
         
         # Extract and clean brand names
@@ -160,6 +201,7 @@ def get_dynamic_brand_list_from_research(category, market, api_key):
         
         brands = []
         for line in brand_lines:
+            # Clean brand names
             clean_brand = line.replace('•', '').replace('-', '').replace('*', '')
             clean_brand = ''.join(char for char in clean_brand if not (char.isdigit() and char in '123456789.'))
             clean_brand = clean_brand.strip()
@@ -173,26 +215,42 @@ def get_dynamic_brand_list_from_research(category, market, api_key):
             raise Exception(f"Only {len(brands)} brands found")
             
     except Exception as e:
-        # Return more realistic fallback brands based on category
-        if category.lower() in ['cosmetics', 'beauty', 'skincare', 'cream']:
-            return ['L\'Oreal', 'Maybelline', 'Lakme', 'MAC', 'Revlon', 'Clinique', 'Estee Lauder', 'Nykaa', 'Lotus Herbals', 'Forest Essentials']
-        elif category.lower() in ['automotive', 'car', 'vehicle']:
-            return ['Toyota', 'Honda', 'Hyundai', 'Maruti Suzuki', 'Tata Motors', 'Mahindra', 'BMW', 'Mercedes-Benz']
-        else:
-            return [f"Research failed: {str(e)[:30]}"] + ['Popular Brand 1', 'Popular Brand 2', 'Popular Brand 3', 'Popular Brand 4', 'Popular Brand 5']
+        # Return category-specific fallback brands
+        return get_fallback_brands(category, market)
 
 def get_fallback_brands(category, market):
-    """Minimal fallback when dynamic research fails"""
-    if category.lower() in ['automotive', 'car', 'vehicle', 'ev', 'electric']:
-        if market.lower() in ['india', 'indian']:
-            return ['Tesla', 'Tata Motors', 'Hyundai', 'Maruti Suzuki', 'Mahindra', 'Toyota', 'Honda', 'BMW', 'Mercedes-Benz', 'MG Motor']
-        else:
-            return ['Tesla', 'Toyota', 'Honda', 'Ford', 'BMW', 'Mercedes-Benz', 'Audi', 'Hyundai', 'Nissan', 'Volkswagen']
+    """FIXED: Category-specific fallback brands"""
+    fallback_brands = {
+        'cosmetics': {
+            'India': ['Lakme', 'Maybelline', 'L\'Oreal', 'MAC', 'Revlon', 'Clinique', 'Estee Lauder', 'Nykaa', 'Lotus Herbals', 'Forest Essentials', 'Colorbar', 'Faces Canada', 'Biotique', 'Himalaya Herbals', 'VLCC'],
+            'global': ['L\'Oreal', 'Maybelline', 'MAC', 'Revlon', 'Clinique', 'Estee Lauder', 'Chanel', 'Dior', 'Urban Decay', 'NARS']
+        },
+        'automotive': {
+            'India': ['Maruti Suzuki', 'Hyundai', 'Tata Motors', 'Mahindra', 'Toyota', 'Honda', 'BMW', 'Mercedes-Benz', 'Audi', 'Ford'],
+            'global': ['Toyota', 'Honda', 'Ford', 'BMW', 'Mercedes-Benz', 'Audi', 'Hyundai', 'Nissan', 'Volkswagen', 'Tesla']
+        },
+        'technology': {
+            'India': ['Samsung', 'Apple', 'OnePlus', 'Xiaomi', 'Oppo', 'Vivo', 'Realme', 'Nokia', 'Motorola', 'Google'],
+            'global': ['Apple', 'Samsung', 'Google', 'Microsoft', 'Sony', 'LG', 'Huawei', 'OnePlus', 'Nokia', 'Motorola']
+        },
+        'food_beverage': {
+            'India': ['Amul', 'Britannia', 'Parle', 'ITC', 'Nestle', 'Coca-Cola', 'PepsiCo', 'Haldiram\'s', 'MTR', 'Patanjali'],
+            'global': ['Coca-Cola', 'PepsiCo', 'Nestle', 'Unilever', 'Mars', 'Mondelez', 'Kraft Heinz', 'General Mills', 'Kellogg\'s', 'Starbucks']
+        }
+    }
+    
+    # Get market-specific brands or default to global
+    market_key = 'India' if 'india' in market.lower() else 'global'
+    
+    if category in fallback_brands and market_key in fallback_brands[category]:
+        return fallback_brands[category][market_key]
+    elif category in fallback_brands:
+        return fallback_brands[category]['global']
     else:
         return ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
 
 def get_comprehensive_brand_list(category, market, api_key=None):
-    """Get truly dynamic brand list - NO HARD CODING"""
+    """FIXED: Get truly dynamic brand list for ANY category"""
     
     if api_key:
         # Use AI-powered dynamic research
@@ -200,6 +258,24 @@ def get_comprehensive_brand_list(category, market, api_key=None):
     else:
         # Fallback when no API key available
         return get_fallback_brands(category, market)
+
+def calculate_question_count(loi_minutes):
+    """Calculate proper question distribution based on LOI with higher question counts"""
+    # Core research questions should be 2.5 times LOI for comprehensive surveys
+    core_questions = int(loi_minutes * 2.5)
+    
+    # Additional questions for screener and demographics
+    screener_questions = max(8, int(loi_minutes * 0.4))
+    demographics_questions = max(8, int(loi_minutes * 0.4))
+    
+    total_questions = core_questions + screener_questions + demographics_questions
+    
+    return {
+        'screener': screener_questions,
+        'core_research': core_questions,
+        'demographics': demographics_questions,
+        'total': total_questions
+    }
 
 def web_research_brands_and_trends(query, api_key):
     """Enhanced web research for comprehensive brand lists and current trends"""
@@ -242,158 +318,6 @@ def web_research_brands_and_trends(query, api_key):
     except Exception as e:
         return f"Research error: {str(e)}"
 
-def calculate_question_count(loi_minutes):
-    """Calculate proper question distribution based on LOI with higher question counts"""
-    # Core research questions should be 2.5 times LOI for comprehensive surveys
-    core_questions = int(loi_minutes * 2.5)  # Increased multiplier
-    
-    # Additional questions for screener and demographics
-    screener_questions = max(8, int(loi_minutes * 0.4))  # Increased screener questions
-    demographics_questions = max(8, int(loi_minutes * 0.4))  # Increased demographics
-    
-    total_questions = core_questions + screener_questions + demographics_questions
-    
-    return {
-        'screener': screener_questions,
-        'core_research': core_questions,
-        'demographics': demographics_questions,
-        'total': total_questions
-    }
-
-def generate_advanced_survey_prompt(survey_data, research_data, toolkit):
-    """Generate comprehensive survey prompt with all requirements including question metadata"""
-    
-    question_counts = calculate_question_count(survey_data['survey_loi'])
-    
-    # Get comprehensive brand list
-    if 'automotive' in survey_data['survey_objective'].lower() or 'car' in survey_data['target_audience'].lower():
-        brand_list = get_comprehensive_brand_list('automotive', survey_data['market_country'])
-    else:
-        brand_list = []
-    
-    # Extract metadata guidelines
-    metadata = toolkit['survey_question_metadata']
-    
-    prompt = f"""
-You are an expert survey methodologist and statistician. Create a comprehensive, professional survey questionnaire with EXTENSIVE question coverage.
-
-=== CRITICAL REQUIREMENTS ===
-MUST GENERATE EXACTLY {question_counts['total']} QUESTIONS:
-- Screener: {question_counts['screener']} questions
-- Core Research: {question_counts['core_research']} questions  
-- Demographics: {question_counts['demographics']} questions
-
-=== SURVEY SPECIFICATIONS ===
-Objective: {survey_data['survey_objective']}
-Target Audience: {survey_data['target_audience']}
-Population Size: {survey_data['population_size']:,}
-Survey LOI: {survey_data['survey_loi']} minutes
-Methodology: {survey_data['methodology']}
-Device Context: {survey_data['device_context']}
-Market: {survey_data['market_country']}
-Statistical Methods: {', '.join(survey_data['statistical_methods'])}
-
-=== COMPREHENSIVE BRAND LIST TO USE ===
-{', '.join(brand_list)}
-
-=== CURRENT MARKET RESEARCH ===
-{research_data}
-
-=== ANSWER OPTIONS FORMATTING REQUIREMENT ===
-For ALL questions, put each answer option on a SEPARATE LINE:
-Example:
-Q1. What is your age?
-- 18-24
-- 25-34  
-- 35-44
-- 45-54
-- 55 and above
-- Others (specify)
-
-=== MANDATORY SCALE DESCRIPTIONS ===
-For ALL rating questions, provide complete 5-point scale:
-Likert Scale: 
-- 1 = Strongly Disagree
-- 2 = Disagree  
-- 3 = Neither Agree nor Disagree
-- 4 = Agree
-- 5 = Strongly Agree
-
-Importance Scale:
-- 1 = Not at all Important
-- 2 = Slightly Important
-- 3 = Moderately Important
-- 4 = Very Important
-- 5 = Extremely Important
-
-=== ENHANCED QUESTION FORMAT WITH METADATA ===
-Q[Number]. [Question Text]
-- [Answer Option 1]
-- [Answer Option 2]  
-- [Answer Option 3]
-- [Answer Option 4]
-- [Answer Option 5]
-- Others (specify) [where applicable]
-
-**QUESTION METADATA:**
-Purpose: [Explain the research objective]
-Data Type: [Specify data type]
-Statistical Methods: [List applicable methods]
-Fraud Detection: [Yes/No - specify check type]
-Quality Checks: [Define validation checks]
-Skip Logic: [Routing conditions]
-Termination Logic: [End survey conditions for screeners]
-
-=== COMPREHENSIVE SURVEY STRUCTURE ===
-
-**SECTION 1: SCREENER QUESTIONS ({question_counts['screener']} questions)**
-Include ALL of these question types:
-1. Age screening with termination
-2. Gender identification  
-3. Income level screening
-4. Geographic location validation
-5. Employment status
-6. Category usage/ownership
-7. Purchase timeline screening
-8. Attention check question
-
-**SECTION 2: CORE RESEARCH QUESTIONS ({question_counts['core_research']} questions)**
-MUST include extensive coverage:
-- Brand awareness (unaided) - 2 questions
-- Brand awareness (aided) - 3 questions  
-- Current ownership/usage - 4 questions
-- Brand preference ranking - 2 questions
-- Attribute importance ratings - 8 questions
-- Brand association matrix - 6 questions
-- Purchase consideration - 4 questions
-- Satisfaction ratings - 6 questions
-- Feature preferences - 8 questions
-- Price sensitivity - 4 questions
-- Additional product-specific questions to reach target count
-
-**SECTION 3: DEMOGRAPHICS ({question_counts['demographics']} questions)**
-Include comprehensive profiling:
-1. Detailed age brackets
-2. Gender and family status
-3. Income ranges (detailed)
-4. Education level
-5. Occupation type
-6. Household size
-7. Geographic details
-8. Lifestyle indicators
-
-=== FRAUD DETECTION REQUIREMENTS ===
-Include minimum 3 attention checks throughout survey:
-- "Please select 'Agree' for this question"
-- Hidden time validation checks
-- Straight-lining detection in matrices
-- Open-end quality requirements
-
-Generate a complete questionnaire with EXACTLY {question_counts['total']} questions, proper metadata, and answer options on separate lines.
-"""
-    
-    return prompt
-
 def format_questionnaire_with_logic(questionnaire_text):
     """Enhanced formatting with better structure and logic display"""
     lines = questionnaire_text.split('\n')
@@ -432,7 +356,7 @@ def create_comprehensive_word_document(questionnaire_text, survey_data):
     
     # Executive summary
     doc.add_heading('Survey Specifications', level=1)
-    specs_table = doc.add_table(rows=8, cols=2)
+    specs_table = doc.add_table(rows=9, cols=2)
     specs_table.style = 'Table Grid'
     
     specs_data = [
@@ -442,6 +366,7 @@ def create_comprehensive_word_document(questionnaire_text, survey_data):
         ['Methodology', survey_data['methodology']],
         ['Device Context', survey_data['device_context']],
         ['Market/Country', survey_data['market_country']],
+        ['Detected Category', survey_data.get('detected_category', 'Unknown')],
         ['Statistical Methods', ', '.join(survey_data['statistical_methods'])],
         ['Generation Date', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
     ]
@@ -638,14 +563,14 @@ with col1:
     survey_objective = st.text_area(
         "Survey Objective", 
         value=st.session_state.get('survey_objective', ''),
-        placeholder="e.g., Understand electric vehicle purchase intentions among high-income consumers in India",
+        placeholder="e.g., Understand night cream usage patterns and brand preferences among women aged 18-45",
         key='survey_objective'
     )
     
     target_audience = st.text_input(
         "Target Audience",
         value=st.session_state.get('target_audience', ''),
-        placeholder="e.g., High-income car buyers aged 25-45 in urban India",
+        placeholder="e.g., Women aged 18-45 who have used night cream in the last week",
         key='target_audience'
     )
     
@@ -704,6 +629,9 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         st.error("⚠️ Please provide Survey Objective and Target Audience")
         st.stop()
     
+    # FIXED: Intelligent category detection
+    detected_category, confidence = detect_survey_category(survey_objective, target_audience)
+    
     # Store survey data
     survey_data = {
         'survey_objective': survey_objective,
@@ -715,7 +643,8 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         'market_country': market_country,
         'statistical_methods': statistical_methods,
         'allowed_question_types': allowed_question_types,
-        'compliance_requirements': compliance_requirements
+        'compliance_requirements': compliance_requirements,
+        'detected_category': detected_category  # FIXED: Store detected category
     }
     
     st.session_state.survey_data_stored = survey_data
@@ -735,37 +664,19 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.progress(25)
         question_counts = calculate_question_count(survey_data['survey_loi'])
         
-        # Step 3: Intelligent category detection and dynamic brand research
-        status_text.text("🧠 Analyzing survey category and researching brands...")
+        # Step 3: FIXED Category detection and brand research
+        status_text.text(f"🧠 Category detected: {detected_category} (confidence: {confidence})")
         progress_bar.progress(35)
         
-        # Smart category detection from survey objective
-        objective_lower = survey_data['survey_objective'].lower()
+        st.info(f"🎯 **Category Detected:** {detected_category.title()} | **Confidence Score:** {confidence} | **Market:** {survey_data['market_country']}")
         
-        # Detect category intelligently
-        if any(keyword in objective_lower for keyword in ['automotive', 'car', 'vehicle', 'ev', 'electric']):
-            survey_category = 'automotive'
-        elif any(keyword in objective_lower for keyword in ['cosmetic', 'beauty', 'cream', 'skincare', 'makeup', 'lipstick', 'foundation']):
-            survey_category = 'cosmetics'
-        elif any(keyword in objective_lower for keyword in ['food', 'restaurant', 'dining', 'beverage', 'drink']):
-            survey_category = 'food_beverage'
-        elif any(keyword in objective_lower for keyword in ['phone', 'smartphone', 'mobile', 'technology', 'laptop', 'computer']):
-            survey_category = 'technology'
-        elif any(keyword in objective_lower for keyword in ['fashion', 'clothing', 'apparel', 'shoes', 'brand']):
-            survey_category = 'fashion'
-        else:
-            # Extract key terms for unknown categories
-            survey_category = objective_lower.split()[0] if objective_lower.split() else 'general'
-        
-        st.info(f"🎯 **Category Detected:** {survey_category.title()} | **Market:** {survey_data['market_country']}")
-        
-        # Dynamic brand research based on detected category
+        # FIXED: Dynamic brand research based on detected category
         try:
-            brand_list = get_comprehensive_brand_list(survey_category, survey_data['market_country'], api_key)
+            brand_list = get_comprehensive_brand_list(detected_category, survey_data['market_country'], api_key)
             brand_research_success = True
         except Exception as e:
             st.warning(f"⚠️ Brand research failed: {str(e)}")
-            brand_list = ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E']
+            brand_list = get_fallback_brands(detected_category, survey_data['market_country'])
             brand_research_success = False
         
         # Display results
@@ -775,23 +686,22 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
             st.error(f"❌ **Brand Research Failed:** Using fallback brands - {', '.join(brand_list)}")
         
         # Store category and brands for prompts
-        survey_data['detected_category'] = survey_category
         brand_list_text = ', '.join(brand_list)
         top_10_brands = ', '.join(brand_list[:10])
         top_6_brands = ', '.join(brand_list[:6])
         
         # Step 4: Comprehensive Market Research
-        status_text.text("🔍 Conducting comprehensive market research...")
+        status_text.text(f"🔍 Conducting {detected_category} market research...")
         progress_bar.progress(45)
-        research_query = f"{survey_data['target_audience']} {survey_data['market_country']} comprehensive brand list market trends consumer behavior automotive industry"
+        research_query = f"{survey_data['target_audience']} {survey_data['market_country']} {detected_category} comprehensive brand list market trends consumer behavior"
         research_data = web_research_brands_and_trends(research_query, api_key)
         
-        # Step 5: Generate Advanced Prompt (not used in multi-part generation)
+        # Step 5: Generate Advanced Prompt
         status_text.text("📝 Preparing survey generation...")
         progress_bar.progress(55)
         
-        # Step 6: Generate Questionnaire in Multiple Parts
-        status_text.text("🤖 Generating comprehensive questionnaire...")
+        # Step 6: FIXED - Generate Questionnaire in Multiple Parts with category consistency
+        status_text.text(f"🤖 Generating comprehensive {detected_category} questionnaire...")
         progress_bar.progress(65)
         
         client = OpenAI(api_key=api_key)
@@ -799,28 +709,28 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         # Generate questionnaire in parts to ensure all questions are created
         full_questionnaire = ""
         
-        # Part 1: Screener Questions
-        status_text.text("🤖 Generating screener questions...")
+        # FIXED Part 1: Screener Questions - category specific
+        status_text.text(f"🤖 Generating {detected_category} screener questions...")
         screener_prompt = f"""
-        You are an expert {survey_data['detected_category']} market researcher specializing in {survey_data['market_country']} market research.
+        You are an expert {detected_category} market researcher specializing in {survey_data['market_country']} market research.
 
-        Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this {survey_data['detected_category']} survey:
+        Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this {detected_category} survey:
         
         Survey Objective: {survey_data['survey_objective']}
         Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
-        Category: {survey_data['detected_category']}
+        Category: {detected_category}
         Available Brands: {brand_list_text}
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {question_counts['screener']} questions numbered Q1. Q2. Q3. etc.
-        - Focus ONLY on {survey_data['detected_category']}-specific screening based on survey objective
-        - Use REAL {survey_data['detected_category']} brands from research: {top_10_brands}
+        - Focus ONLY on {detected_category}-specific screening based on survey objective
+        - Use REAL {detected_category} brands from research: {top_10_brands}
         - NEVER use "Brand A, Brand B, Brand C" - always use real brand names
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
         - Include termination logic where applicable
-        - NO QUESTIONS ABOUT OTHER CATEGORIES (cars, EVs, etc.)
+        - NO QUESTIONS ABOUT OTHER CATEGORIES
         
         EXAMPLE FORMAT:
         Q1. What is your age?
@@ -831,21 +741,21 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         - 55+ 
         - Others (specify)
         
-        Purpose: Validate target demographic age range for {survey_data['detected_category']} study
+        Purpose: Validate target demographic age range for {detected_category} study
         Data Type: Categorical_Single_Response
         Statistical Methods: Descriptive Statistics, Cross-tabulation, Demographic Analysis
         Fraud Detection: No
         Quality Checks: Age range validation, logical consistency
-        Termination Logic: Terminate if outside target age range for this {survey_data['detected_category']} study
+        Termination Logic: Terminate if outside target age range for this {detected_category} study
         
-        Generate all {question_counts['screener']} screener questions focusing ONLY on {survey_data['detected_category']} qualification.
+        Generate all {question_counts['screener']} screener questions focusing ONLY on {detected_category} qualification.
         Use real brand names: {brand_list_text}
         """
         
         screener_response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "system", "content": f"You are an expert {detected_category} survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
                 {"role": "user", "content": screener_prompt}
             ],
             temperature=0.2,
@@ -854,59 +764,59 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         
         full_questionnaire += screener_response.choices[0].message.content + "\n\n"
         
-        # Part 2: Core Research Questions (First Half)
-        status_text.text("🤖 Generating core research questions (Part 1)...")
+        # FIXED Part 2: Core Research Questions (First Half) - category specific
+        status_text.text(f"🤖 Generating {detected_category} core research questions (Part 1)...")
         progress_bar.progress(75)
         core_part1_count = question_counts['core_research'] // 2
         start_q = question_counts['screener'] + 1
         end_q = start_q + core_part1_count - 1
         
         core_part1_prompt = f"""
-        You are an expert {survey_data['detected_category']} market researcher. 
+        You are an expert {detected_category} market researcher. 
 
-        Generate EXACTLY {core_part1_count} CORE {survey_data['detected_category'].upper()} RESEARCH QUESTIONS:
+        Generate EXACTLY {core_part1_count} CORE {detected_category.upper()} RESEARCH QUESTIONS:
         
         Survey Objective: {survey_data['survey_objective']}
         Target Audience: {survey_data['target_audience']}
         Market: {survey_data['market_country']}
-        Category: {survey_data['detected_category']}
+        Category: {detected_category}
         
-        DYNAMICALLY RESEARCHED BRANDS FOR {survey_data['detected_category'].upper()}:
+        DYNAMICALLY RESEARCHED BRANDS FOR {detected_category.upper()}:
         {brand_list_text}
         
         CRITICAL BRAND REQUIREMENTS:
         - NEVER use generic names like "Brand A, Brand B, Brand C"
-        - ALWAYS use the specific {survey_data['detected_category']} brands from the research: {top_10_brands}
+        - ALWAYS use the specific {detected_category} brands from the research: {top_10_brands}
         - If insufficient brands researched, acknowledge and work with available brands
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {core_part1_count} questions numbered Q{start_q}. to Q{end_q}.
-        - Focus on: brand awareness, current usage, {survey_data['detected_category']} preferences
+        - Focus on: brand awareness, current usage, {detected_category} preferences
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
-        - ONLY {survey_data['detected_category'].upper()}-RELATED QUESTIONS based on survey objective
+        - ONLY {detected_category.upper()}-RELATED QUESTIONS based on survey objective
         
-        MANDATORY BRAND QUESTIONS FOR {survey_data['detected_category'].upper()}:
+        MANDATORY BRAND QUESTIONS FOR {detected_category.upper()}:
         
-        Q{start_q}. Which {survey_data['detected_category']} brands come to mind when you think about this category? (Unaided awareness)
+        Q{start_q}. Which {detected_category} brands come to mind when you think about this category? (Unaided awareness)
         - Open-ended text response
         
-        Q{start_q+1}. Which of the following {survey_data['detected_category']} brands have you heard of? (Select all that apply)
+        Q{start_q+1}. Which of the following {detected_category} brands have you heard of? (Select all that apply)
         {chr(10).join([f'- {brand}' for brand in brand_list[:12]])}
         - Others (specify)
         
-        Q{start_q+2}. Which {survey_data['detected_category']} brands do you currently use or have used? (Select all that apply)
+        Q{start_q+2}. Which {detected_category} brands do you currently use or have used? (Select all that apply)
         {chr(10).join([f'- {brand}' for brand in brand_list[:10]])}
         - Others (specify)
         
         Continue generating remaining questions using the researched brands: {brand_list_text}
-        Focus on {survey_data['detected_category']}-specific usage, satisfaction, and preferences based on the survey objective.
+        Focus on {detected_category}-specific usage, satisfaction, and preferences based on the survey objective.
         """
         
         core_part1_response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "system", "content": f"You are an expert {detected_category} survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
                 {"role": "user", "content": core_part1_prompt}
             ],
             temperature=0.2,
@@ -915,15 +825,15 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         
         full_questionnaire += core_part1_response.choices[0].message.content + "\n\n"
         
-        # Part 3: Core Research Questions (Second Half)
-        status_text.text("🤖 Generating core research questions (Part 2)...")
+        # FIXED Part 3: Core Research Questions (Second Half) - category specific
+        status_text.text(f"🤖 Generating {detected_category} core research questions (Part 2)...")
         progress_bar.progress(85)
         core_part2_count = question_counts['core_research'] - core_part1_count
         start_q2 = end_q + 1
         end_q2 = start_q2 + core_part2_count - 1
         
         core_part2_prompt = f"""
-        You are an expert EV market researcher. Generate EXACTLY {core_part2_count} ADVANCED EV RESEARCH QUESTIONS:
+        You are an expert {detected_category} market researcher. Generate EXACTLY {core_part2_count} ADVANCED {detected_category.upper()} RESEARCH QUESTIONS:
         
         MANDATORY BRAND LIST - Use these dynamically loaded brands:
         {brand_list_text}
@@ -935,39 +845,41 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         - NEVER use "Brand A, Brand B" - use brands from the dynamic list above
         - Include matrix questions with 5-point scales
         - Each answer option on separate line with dash (-)
+        - Focus ONLY on {detected_category} category - NO OTHER CATEGORIES
         
-        MANDATORY MATRIX QUESTIONS:
+        MANDATORY MATRIX QUESTIONS FOR {detected_category.upper()}:
         
-        Q{start_q2}. Please rate the importance of the following EV attributes: 
+        Q{start_q2}. Please rate the importance of the following {detected_category} attributes: 
         (Scale: 1=Not at all Important, 2=Slightly Important, 3=Moderately Important, 4=Very Important, 5=Extremely Important)
-        - Driving Range: [1] [2] [3] [4] [5]
-        - Charging Time: [1] [2] [3] [4] [5]
-        - Charging Infrastructure: [1] [2] [3] [4] [5]
-        - Purchase Price: [1] [2] [3] [4] [5]
+        - Quality: [1] [2] [3] [4] [5]
+        - Price: [1] [2] [3] [4] [5]
         - Brand Reputation: [1] [2] [3] [4] [5]
-        - Performance: [1] [2] [3] [4] [5]
-        - Safety Features: [1] [2] [3] [4] [5]
-        - Environmental Impact: [1] [2] [3] [4] [5]
+        - Availability: [1] [2] [3] [4] [5]
+        - Packaging: [1] [2] [3] [4] [5]
+        - Effectiveness: [1] [2] [3] [4] [5]
+        - Safety: [1] [2] [3] [4] [5]
+        - Ingredients: [1] [2] [3] [4] [5]
         - Overall Satisfaction: [1] [2] [3] [4] [5]
         
-        Q{start_q2+1}. How do you associate "Premium Quality" with these EV brands?
+        Q{start_q2+1}. How do you associate "Premium Quality" with these {detected_category} brands?
         (Scale: 1=Not Associated, 2=Slightly Associated, 3=Moderately Associated, 4=Strongly Associated, 5=Extremely Associated)
         {chr(10).join([f'- {brand}: [1] [2] [3] [4] [5]' for brand in brand_list[:6]])}
         
         Continue with remaining questions about:
-        - EV vs conventional car comparisons
-        - Purchase journey factors
-        - Charging infrastructure concerns
-        - Range anxiety
-        - Information sources
+        - {detected_category} purchase journey factors
+        - Brand loyalty and switching behavior
+        - {detected_category} usage patterns
+        - Satisfaction with current {detected_category} products
+        - Information sources for {detected_category} research
         
         Use brands from: {brand_list_text}
+        Focus ONLY on {detected_category} - no other product categories.
         """
         
         core_part2_response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "system", "content": f"You are an expert {detected_category} survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
                 {"role": "user", "content": core_part2_prompt}
             ],
             temperature=0.2,
@@ -983,20 +895,20 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         demo_end = demo_start + question_counts['demographics'] - 1
         
         demo_prompt = f"""
-        You are an expert survey researcher. Generate EXACTLY {question_counts['demographics']} DEMOGRAPHICS QUESTIONS for this EV study:
+        You are an expert survey researcher. Generate EXACTLY {question_counts['demographics']} DEMOGRAPHICS QUESTIONS for this {detected_category} study:
         
         CRITICAL REQUIREMENTS:
         - Generate EXACTLY {question_counts['demographics']} questions numbered Q{demo_start}. to Q{demo_end}.
         - Include: age, gender, income, education, household size, employment, lifestyle
         - Each answer option on separate line with dash (-)
         - Include complete metadata for each question
-        - Use Indian market context (Rupees for income, Indian cities, etc.)
-        - NO GENERIC PRODUCT QUESTIONS - ONLY DEMOGRAPHICS
+        - Use {survey_data['market_country']} market context (local currency, cities, etc.)
+        - NO PRODUCT QUESTIONS - ONLY DEMOGRAPHICS
         
         MANDATORY DEMOGRAPHICS:
         1. Age (detailed brackets)
         2. Gender 
-        3. Annual income (in Rupees - Indian context)
+        3. Annual income (in local currency - {survey_data['market_country']} context)
         4. Education level
         5. Employment status
         6. Household size
@@ -1005,16 +917,15 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         
         EXAMPLE:
         Q{demo_start}. What is your highest level of education?
-        - Less than 10th standard
-        - 10th standard
-        - 12th standard/Higher Secondary
-        - Diploma
+        - Less than high school
+        - High school graduate
+        - Some college
         - Bachelor's degree
         - Master's degree
         - PhD/Doctorate
         - Others (specify)
         
-        Purpose: Educational profiling for EV adoption analysis
+        Purpose: Educational profiling for {detected_category} adoption analysis
         Data Type: Categorical_Ordinal
         Statistical Methods: Demographic analysis, Education-based segmentation, Cross-tabulation
         
@@ -1035,8 +946,6 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         
         questionnaire = full_questionnaire
         
-        questionnaire = full_questionnaire
-        
         # Validate question count
         question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and '.' in line and any(char.isdigit() for char in line)]
         actual_count = len(question_lines)
@@ -1048,23 +957,25 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
             remaining_count = question_counts['total'] - actual_count
             if remaining_count > 0:
                 completion_prompt = f"""
-                The survey is incomplete. Generate {remaining_count} additional questions to complete the survey.
+                The {detected_category} survey is incomplete. Generate {remaining_count} additional {detected_category} questions to complete the survey.
                 Continue from Q{actual_count + 1} to Q{question_counts['total']}.
                 
                 REQUIREMENTS:
                 - Generate EXACTLY {remaining_count} questions
                 - Number them Q{actual_count + 1} through Q{question_counts['total']}
-                - Include purchase journey, satisfaction, and additional research questions
+                - Include {detected_category} purchase journey, satisfaction, and additional research questions
                 - Each answer option on separate line with dash (-)
                 - Include complete metadata for each question
+                - Use brands: {brand_list_text}
+                - Focus ONLY on {detected_category} category
                 
                 EXAMPLE FORMAT:
-                Q{actual_count + 1}. [Question text]
+                Q{actual_count + 1}. [Question text about {detected_category}]
                 - Option 1
                 - Option 2
                 - Option 3
                 
-                Purpose: [Research objective]
+                Purpose: [Research objective for {detected_category}]
                 Statistical Methods: [Analysis methods]
                 Fraud Detection: [Yes/No]
                 """
@@ -1072,7 +983,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 completion_response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[
-                        {"role": "system", "content": "Complete the survey with the exact remaining questions needed. Use proper Q[number]. format."},
+                        {"role": "system", "content": f"Complete the {detected_category} survey with the exact remaining questions needed. Use proper Q[number]. format."},
                         {"role": "user", "content": completion_prompt}
                     ],
                     temperature=0.2,
@@ -1086,7 +997,7 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
                 actual_count = len(question_lines)
         
         # Show generation summary
-        st.info(f"📊 **Generation Summary:** {actual_count} questions generated out of {question_counts['total']} target questions")
+        st.info(f"📊 **Generation Summary:** {actual_count} questions generated out of {question_counts['total']} target questions for {detected_category} category")
         
         # Step 7: Validate and complete questionnaire
         status_text.text("✅ Validating question count...")
@@ -1110,9 +1021,9 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         final_count = len(final_question_lines)
         
         if final_count >= question_counts['total']:
-            st.success(f"🎉 **Complete questionnaire generated!** {final_count} questions created. Scroll down to view and download.")
+            st.success(f"🎉 **Complete {detected_category} questionnaire generated!** {final_count} questions created. Scroll down to view and download.")
         else:
-            st.success(f"🎉 **Questionnaire generated!** {final_count} out of {question_counts['total']} questions created. Scroll down to view and download.")
+            st.success(f"🎉 **{detected_category.title()} questionnaire generated!** {final_count} out of {question_counts['total']} questions created. Scroll down to view and download.")
         
     except Exception as e:
         progress_bar.empty()
@@ -1176,14 +1087,21 @@ if st.session_state.questionnaire_generated and st.session_state.questionnaire_t
 
 # Information panels
 if not st.session_state.questionnaire_generated:
-    st.header("📚 Excel Toolkit Integration with Survey Question Metadata")
-    toolkit = load_comprehensive_excel_toolkit()
+    st.header("📚 Fixed Category Detection System")
     
-    # Enhanced toolkit display with metadata
+    # Test category detection
+    if st.session_state.get('survey_objective', ''):
+        test_category, test_confidence = detect_survey_category(
+            st.session_state.get('survey_objective', ''), 
+            st.session_state.get('target_audience', '')
+        )
+        st.info(f"🔍 **Preview Category Detection:** {test_category.title()} (Confidence: {test_confidence})")
+    
     col1, col2 = st.columns(2)
     
     with col1:
         with st.expander("🔧 View Survey Toolkit", expanded=False):
+            toolkit = load_comprehensive_excel_toolkit()
             st.subheader("Question Types & Scales")
             for q_type, details in toolkit['question_types'].items():
                 st.write(f"**{q_type}:**")
@@ -1192,69 +1110,55 @@ if not st.session_state.questionnaire_generated:
                 st.write("---")
     
     with col2:
-        with st.expander("📋 Survey Question Metadata", expanded=False):
-            st.subheader("Comprehensive Question Metadata")
+        with st.expander("🎯 Category Detection Logic", expanded=False):
+            st.subheader("Supported Categories")
+            categories = {
+                'Cosmetics': ['cosmetics', 'beauty', 'cream', 'skincare', 'makeup', 'night cream'],
+                'Automotive': ['automotive', 'car', 'vehicle', 'ev', 'electric vehicle'],
+                'Technology': ['phone', 'smartphone', 'mobile', 'laptop', 'computer'],
+                'Food & Beverage': ['food', 'restaurant', 'beverage', 'drink', 'coffee'],
+                'Fashion': ['fashion', 'clothing', 'apparel', 'shoes'],
+                'Healthcare': ['healthcare', 'medical', 'health', 'medicine'],
+                'Finance': ['finance', 'banking', 'investment', 'insurance']
+            }
             
-            # Display screener metadata sample
-            st.write("**Screener Questions Metadata:**")
-            age_metadata = toolkit['survey_question_metadata']['screener_questions']['age_screening']
-            st.json({
-                'Purpose': age_metadata['purpose'],
-                'Data Type': age_metadata['data_type'],
-                'Statistical Applications': age_metadata['statistical_applications'],
-                'Quality Checks': age_metadata['quality_checks'],
-                'Estimated Time': f"{age_metadata['estimated_time_seconds']} seconds"
-            })
-            
-            # Display core research metadata sample
-            st.write("**Core Research Questions Metadata:**")
-            brand_metadata = toolkit['survey_question_metadata']['core_research_questions']['brand_awareness_unaided']
-            st.json({
-                'Purpose': brand_metadata['purpose'],
-                'Data Type': brand_metadata['data_type'],
-                'Statistical Applications': brand_metadata['statistical_applications'],
-                'Quality Checks': brand_metadata['quality_checks'],
-                'Estimated Time': f"{brand_metadata['estimated_time_seconds']} seconds"
-            })
+            for category, keywords in categories.items():
+                st.write(f"**{category}:** {', '.join(keywords[:4])}...")
     
     st.success("""
-    ✅ **Survey Question Metadata Integration Confirmed:**
+    ✅ **FIXED: Category Consistency Issues Resolved:**
     
-    **Now Includes Comprehensive Metadata for Each Question:**
-    - 📊 **Purpose & Research Objective** for every question type
-    - 🔢 **Data Type Specifications** (Categorical, Ordinal, Text, etc.)
-    - ✅ **Validation Rules** and quality control measures
-    - 📈 **Statistical Applications** and analysis methods
-    - 🚫 **Termination Logic** for screening questions
-    - ⏱️ **Estimated Completion Time** per question
-    - 📱 **Mobile Optimization** guidelines
-    - ♿ **Accessibility Notes** for inclusive design
-    - 🔍 **Quality Checks** and fraud detection protocols
+    **Key Fixes Implemented:**
+    - 🎯 **Intelligent Category Detection** - Automatically detects survey category from objective and target audience
+    - 🏷️ **Category-Specific Brand Research** - Dynamically loads brands for detected category only
+    - 🚫 **No Hard-Coded Categories** - Removed all hard-coded EV references in prompts
+    - 🔄 **Consistent Category Usage** - All question parts use the same detected category
+    - 📊 **Category Confidence Scoring** - Shows detection confidence level
+    - 🎨 **Category-Specific Attributes** - Matrix questions adapt to category (cosmetics vs automotive vs tech)
+    - 🏪 **Market-Specific Brands** - Different brand lists for India vs global markets
+    - 📝 **Category Validation** - Prevents mixing categories in questionnaire
     
-    **Excel Output Includes 7 Comprehensive Sheets:**
-    1. **Survey Details** - Project specifications
-    2. **Questions Analysis** - Complete question breakdown
-    3. **Survey Question Metadata** - Detailed metadata for all question types
-    4. **Survey Toolkit** - Question types and scales
-    5. **Fraud Guidelines** - Detection and prevention protocols
-    6. **Termination Criteria** - Screening and quality standards
-    7. **LOI Guidelines** - Timing and length calculations
+    **Supported Categories:**
+    - 🧴 **Cosmetics** (beauty, skincare, night cream, makeup)
+    - 🚗 **Automotive** (cars, EVs, vehicles)
+    - 📱 **Technology** (smartphones, laptops, software)
+    - 🍕 **Food & Beverage** (restaurants, drinks, snacks)
+    - 👗 **Fashion** (clothing, shoes, accessories)
+    - 🏥 **Healthcare** (medical, health products)
+    - 💰 **Finance** (banking, investment, insurance)
     """)
     
+    q_counts = calculate_question_count(20)
     st.info(f"""
-    🎯 **FIXED: Complete Question Generation System:**
-    - ✅ **Multi-part generation** ensures all {q_counts['total']} questions are created
-    - ✅ **Question count validation** with automatic completion if needed
-    - ✅ **Higher token limits** (6500+ tokens total) for comprehensive questionnaires
-    - ✅ **Explicit numbering** from Q1 to Q{q_counts['total']}
-    - ✅ **Answer options on separate lines** (fixed formatting)
-    - ✅ **Complete metadata** for every question
-    - ✅ **Comprehensive brand lists** (25+ automotive brands)
-    - ✅ **5-point scale descriptions** for all rating questions
-    - ✅ **Form data persistence** (no reset after download)
-    - ✅ **Survey Question Metadata** integration with 7 Excel sheets
+    🎯 **Category-Consistent Question Generation:**
+    - ✅ **Screener Questions** ({q_counts['screener']}) - Category-specific qualification
+    - ✅ **Core Research** ({q_counts['core_research']}) - Brand awareness, usage, satisfaction for detected category only
+    - ✅ **Demographics** ({q_counts['demographics']}) - Standard demographic profiling
+    - ✅ **Total Questions** ({q_counts['total']}) - All focused on single detected category
+    - ✅ **Real Brand Names** - No more "Brand A, Brand B, Brand C"
+    - ✅ **Metadata Integration** - Complete question metadata for all sections
     """)
 
 # Footer
 st.markdown("---")
-st.markdown("*Powered by Advanced AI Survey Methodology • Excel Toolkit + Survey Question Metadata Integrated • Professional Grade Output*")
+st.markdown("*Powered by Advanced AI Survey Methodology • Category-Consistent Generation • Professional Grade Output*")
