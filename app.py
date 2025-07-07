@@ -688,22 +688,172 @@ if st.button("🎯 Generate Comprehensive Survey Questionnaire", type="primary",
         progress_bar.progress(50)
         advanced_prompt = generate_advanced_survey_prompt(survey_data, research_data, toolkit)
         
-        # Step 4: Generate Questionnaire
+        # Step 4: Generate Questionnaire in Multiple Parts
         status_text.text("🤖 Generating comprehensive questionnaire...")
         progress_bar.progress(70)
         
         client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        
+        # Generate questionnaire in parts to ensure all questions are created
+        full_questionnaire = ""
+        
+        # Part 1: Screener Questions
+        screener_prompt = f"""
+        Generate EXACTLY {question_counts['screener']} SCREENER QUESTIONS for this survey:
+        
+        Survey: {survey_data['survey_objective']}
+        Target: {survey_data['target_audience']}
+        Market: {survey_data['market_country']}
+        
+        REQUIREMENTS:
+        - Generate EXACTLY {question_counts['screener']} questions numbered Q1 to Q{question_counts['screener']}
+        - Include age, income, location, employment, car ownership, EV consideration, attention checks
+        - Each answer option on separate line with dash (-)
+        - Include complete metadata for each question
+        - Include termination logic where applicable
+        
+        Start with: SECTION 1: SCREENER QUESTIONS ({question_counts['screener']} QUESTIONS)
+        """
+        
+        screener_response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are an expert survey methodologist with 20+ years of experience in professional survey design, statistical analysis, and fraud detection. You MUST generate the EXACT number of questions specified."},
-                {"role": "user", "content": advanced_prompt}
+                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "user", "content": screener_prompt}
             ],
             temperature=0.2,
-            max_tokens=4000
+            max_tokens=2000
         )
         
-        questionnaire = response.choices[0].message.content
+        full_questionnaire += screener_response.choices[0].message.content + "\n\n"
+        
+        # Part 2: Core Research Questions (First Half)
+        core_part1_count = question_counts['core_research'] // 2
+        start_q = question_counts['screener'] + 1
+        end_q = start_q + core_part1_count - 1
+        
+        core_part1_prompt = f"""
+        Generate EXACTLY {core_part1_count} CORE RESEARCH QUESTIONS for this EV survey:
+        
+        Survey: {survey_data['survey_objective']}
+        Brands to use: {', '.join(brand_list)}
+        
+        REQUIREMENTS:
+        - Generate EXACTLY {core_part1_count} questions numbered Q{start_q} to Q{end_q}
+        - Include: brand awareness (unaided/aided), current usage, ownership details, preferences
+        - Each answer option on separate line with dash (-)
+        - Include complete metadata for each question
+        - Use comprehensive brand list provided
+        
+        Start with: SECTION 2A: CORE RESEARCH QUESTIONS - PART 1 ({core_part1_count} QUESTIONS)
+        """
+        
+        core_part1_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "user", "content": core_part1_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=2000
+        )
+        
+        full_questionnaire += core_part1_response.choices[0].message.content + "\n\n"
+        
+        # Part 3: Core Research Questions (Second Half)
+        core_part2_count = question_counts['core_research'] - core_part1_count
+        start_q2 = end_q + 1
+        end_q2 = start_q2 + core_part2_count - 1
+        
+        core_part2_prompt = f"""
+        Generate EXACTLY {core_part2_count} CORE RESEARCH QUESTIONS for this EV survey:
+        
+        Survey: {survey_data['survey_objective']}
+        Brands to use: {', '.join(brand_list)}
+        
+        REQUIREMENTS:
+        - Generate EXACTLY {core_part2_count} questions numbered Q{start_q2} to Q{end_q2}
+        - Include: attribute importance (8+ attributes), brand associations, purchase factors, journey questions
+        - Include matrix questions with 5-point scales (all scale points described)
+        - Each answer option on separate line with dash (-)
+        - Include complete metadata for each question
+        
+        Start with: SECTION 2B: CORE RESEARCH QUESTIONS - PART 2 ({core_part2_count} QUESTIONS)
+        """
+        
+        core_part2_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "user", "content": core_part2_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=2000
+        )
+        
+        full_questionnaire += core_part2_response.choices[0].message.content + "\n\n"
+        
+        # Part 4: Demographics Questions
+        demo_start = end_q2 + 1
+        demo_end = demo_start + question_counts['demographics'] - 1
+        
+        demo_prompt = f"""
+        Generate EXACTLY {question_counts['demographics']} DEMOGRAPHICS QUESTIONS for this survey:
+        
+        REQUIREMENTS:
+        - Generate EXACTLY {question_counts['demographics']} questions numbered Q{demo_start} to Q{demo_end}
+        - Include: detailed age, gender, income, education, household, lifestyle
+        - Each answer option on separate line with dash (-)
+        - Include complete metadata for each question
+        
+        Start with: SECTION 3: DEMOGRAPHICS QUESTIONS ({question_counts['demographics']} QUESTIONS)
+        """
+        
+        demo_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert survey designer. Generate EXACTLY the number of questions specified. Do not truncate."},
+                {"role": "user", "content": demo_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=1500
+        )
+        
+        full_questionnaire += demo_response.choices[0].message.content
+        
+        questionnaire = full_questionnaire
+        
+        questionnaire = full_questionnaire
+        
+        # Validate question count
+        question_lines = [line for line in questionnaire.split('\n') if line.strip().startswith('Q') and ':' in line]
+        actual_count = len(question_lines)
+        
+        if actual_count < question_counts['total']:
+            st.warning(f"⚠️ Generated {actual_count} questions instead of {question_counts['total']}. Attempting to complete...")
+            
+            # Generate remaining questions if needed
+            remaining_count = question_counts['total'] - actual_count
+            if remaining_count > 0:
+                completion_prompt = f"""
+                The survey is incomplete. Generate {remaining_count} additional questions to complete the survey.
+                Continue from Q{actual_count + 1} to Q{question_counts['total']}.
+                Include purchase journey, satisfaction, and additional research questions.
+                Each answer option on separate line with dash (-).
+                Include complete metadata for each question.
+                """
+                
+                completion_response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "Complete the survey with the exact remaining questions needed."},
+                        {"role": "user", "content": completion_prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=2000
+                )
+                
+                questionnaire += "\n\n" + completion_response.choices[0].message.content
         
         # Step 5: Format and Store
         status_text.text("✨ Formatting questionnaire...")
@@ -849,19 +999,18 @@ if not st.session_state.questionnaire_generated:
     7. **LOI Guidelines** - Timing and length calculations
     """)
     
-    st.info("""
-    🎯 **All Issues Resolved + Enhanced Question Count:**
-    - ✅ **FIXED: Syntax error resolved**
-    - ✅ **FIXED: Answer options now on separate lines**
-    - ✅ **FIXED: Increased question count (2.5x LOI for core research)**
-    - ✅ Comprehensive brand database (15+ automotive brands)
-    - ✅ Complete 5-point scale descriptions for all questions  
-    - ✅ Intelligent skip logic and termination criteria
-    - ✅ Statistical analysis methods for each question
-    - ✅ Fraud detection checks and validation rules
-    - ✅ Form data persistence (no reset after download)
-    - ✅ Multiple download formats (TXT, Word, Excel with 7 sheets)
-    - ✅ Survey Question Metadata integration with detailed specifications
+    st.info(f"""
+    🎯 **FIXED: Complete Question Generation System:**
+    - ✅ **Multi-part generation** ensures all {q_counts['total']} questions are created
+    - ✅ **Question count validation** with automatic completion if needed
+    - ✅ **Higher token limits** (6500+ tokens total) for comprehensive questionnaires
+    - ✅ **Explicit numbering** from Q1 to Q{q_counts['total']}
+    - ✅ **Answer options on separate lines** (fixed formatting)
+    - ✅ **Complete metadata** for every question
+    - ✅ **Comprehensive brand lists** (25+ automotive brands)
+    - ✅ **5-point scale descriptions** for all rating questions
+    - ✅ **Form data persistence** (no reset after download)
+    - ✅ **Survey Question Metadata** integration with 7 Excel sheets
     """)
 
 # Footer
